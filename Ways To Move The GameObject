@@ -1,0 +1,8 @@
+| Level | Method                                     | Description                  | Use Case                              |
+| ----- | ------------------------------------------ | ---------------------------- | ------------------------------------- |
+| 🧩 1  | `transform.Translate()`                    | Simple movement (no physics) | UI, cube games, object drift          |
+| ⚙️ 2  | `transform.position`                       | Direct position change       | Teleport, smooth follow, lerp         |
+| 🧲 3  | `Rigidbody.MovePosition()`                 | Physics-friendly movement    | Players, cars, rolling balls          |
+| 🌪️ 4 | `AddForce()`                               | Add physical force           | Jumping, explosions, realistic pushes |
+| 🧠 5  | `Vector3.Lerp()` / `Vector3.MoveTowards()` | Smooth transitions           | AI following, camera movement         |
+| 🎮 6  | **CharacterController.Move()**             | Best for 3D players          | FPS, third-person games               |
