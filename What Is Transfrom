@@ -70,7 +70,13 @@ Tip: difference between position and localPosition
    same for scale and rotation also
  
  
+Notes:
 
+Moves without physics, like teleportation every frame.
+
+Ignores gravity and collisions.
+
+Use in simple prototypes, 2D games, or for non-physical motion (UI, background).
 
  
 
