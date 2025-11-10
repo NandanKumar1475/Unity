@@ -1,0 +1,33 @@
+using UnityEngine;
+
+public class ClampExample : MonoBehaviour
+{
+    public float health = 100f;
+    public float speed = 0f;
+    public float zoom = 60f;
+
+    void Update()
+    {
+        // Example 1: Damage/Heal
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            health -= 25f;
+            health = Mathf.Clamp(health, 0f, 100f);
+            Debug.Log("Health: " + health);
+        }
+
+        // Example 2: Accelerate/Decelerate
+        if (Input.GetKey(KeyCode.W))
+            speed += 5f * Time.deltaTime;
+        else
+            speed -= 2f * Time.deltaTime;
+
+        speed = Mathf.Clamp(speed, 0f, 10f);
+        transform.Translate(Vector3.forward * speed * Time.deltaTime);
+
+        // Example 3: Mouse Zoom
+        zoom -= Input.GetAxis("Mouse ScrollWheel") * 50f * Time.deltaTime;
+        zoom = Mathf.Clamp(zoom, 30f, 80f);
+        Camera.main.fieldOfView = zoom;
+    }
+}
