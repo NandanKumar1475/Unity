@@ -1,0 +1,14 @@
+🧩 Step 1: What is Vector3?
+--> In Unity, Vector3 is a structure that stores three numbers:
+ Vector3 position = new Vector3(x, y, z); -> These three numbers represent position or direction in 3D space.
+Example:-
+Vector3 playerPosition = new Vector3(3, 2, 5);
+This means:
+Move 3 units right , 2 units up , 5 units forward
+So it defines one point in space
+
+| Expression               | Meaning                       | Example     |
+| ------------------------ | ----------------------------- | ----------- |
+| `B - A`                  | Direction (vector from A → B) | `(3, 0, 4)` |
+| `(B - A).magnitude`      | Distance (number)             | `5`         |
+| `Vector3.Distance(A, B)` | Shortcut for above            | `5`         |
