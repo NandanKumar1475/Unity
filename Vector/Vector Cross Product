@@ -1,0 +1,15 @@
+🧩 Step 1 — The Core Idea
+When you have two direction vectors,
+the Cross Product gives you a third vector that is perpendicular (at 90°) to both.
+-->Vector3 cross = Vector3.Cross(A, B);
+Vector3.Cross(Vector3.forward, Vector3.right) = Vector3.up;
+Vector3.Cross(Vector3.right, Vector3.forward) = Vector3.down;
+
+
+| Concept               | Meaning                                   | Unity Example                        |
+| --------------------- | ----------------------------------------- | ------------------------------------ |
+| `Vector3.Cross(A, B)` | Vector perpendicular to A & B             | `Vector3.Cross(forward, right) = up` |
+| **Right-Hand Rule**   | Direction of result                       | Thumb of right hand                  |
+| **Order matters**     | Cross(A, B) = –Cross(B, A)                | Flips direction                      |
+| **Use Cases**         | Find up/right, surface normals, rotations | Lighting, AI, camera, terrain        |
+| **Always 90°**        | Result always perpendicular               | Orthogonal basis vectors             |
