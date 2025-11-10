@@ -12,3 +12,36 @@ So it defines one point in space
 | `B - A`                  | Direction (vector from A → B) | `(3, 0, 4)` |
 | `(B - A).magnitude`      | Distance (number)             | `5`         |
 | `Vector3.Distance(A, B)` | Shortcut for above            | `5`         |
+
+-->Unity Example: Move in Multiple Directions
+
+using UnityEngine;
+
+public class CombineVectorsMovement : MonoBehaviour
+{
+    public float moveSpeed = 5f;
+
+    void Update()
+    {
+        Vector3 moveDir = Vector3.zero;
+
+        if (Input.GetKey(KeyCode.W))
+            moveDir += Vector3.forward;  // forward
+
+        if (Input.GetKey(KeyCode.S))
+            moveDir += Vector3.back;     // backward
+
+        if (Input.GetKey(KeyCode.A))
+            moveDir += Vector3.left;     // left
+
+        if (Input.GetKey(KeyCode.D))
+            moveDir += Vector3.right;    // right
+
+        // Normalize so diagonal speed is consistent
+        moveDir = moveDir.normalized;
+
+        transform.position += moveDir * moveSpeed * Time.deltaTime;
+    }
+
+
+}
