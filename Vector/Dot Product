@@ -1,0 +1,61 @@
+The dot product of two vectors measures how similar their directions are.
+
+Mathematically: dot = A.x * B.x + A.y * B.y + A.z * B.z
+Unity shorthand: float dot = Vector3.Dot(A, B);
+--> Result is a single number (not a vector).
+
+| Dot Result           | Meaning                                        | Real-World Example              |
+| -------------------- | ---------------------------------------------- | ------------------------------- |
+| **1**                | Both vectors face *exactly the same direction* | Player aiming straight at enemy |
+| **0**                | Vectors are *90° apart* (perpendicular)        | Enemy beside player             |
+| **–1**               | Vectors face *opposite directions*             | Enemy directly behind player    |
+| **Between 0 and 1**  | In front at an angle                           | Inside field-of-view cone       |
+| **Between –1 and 0** | Behind player at an angle                      | Out of sight                    |
+
+
+======-===========================------------===============================\
+| Variable                               | Meaning                              | Type                          |
+| -------------------------------------- | ------------------------------------ | ----------------------------- |
+| `player.forward`                       | Direction player is facing           | Local direction (unit vector) |
+| `toEnemy`                              | Direction from player to enemy       | Normalized vector             |
+| `Vector3.Dot(player.forward, toEnemy)` | Measures how much player faces enemy | Scalar (–1 to 1)              |
+| Dot = 1                                | Enemy directly in front              | ✅                             |
+| Dot = 0                                | Enemy exactly at side                | ⚪                             |
+| Dot = –1                               | Enemy behind                         | ❌                             |
+
+
+using UnityEngine;
+
+public class DotVisualizer : MonoBehaviour
+{
+    public Transform target;
+
+    void OnDrawGizmos()
+    {
+        if (!target) return;
+
+        Vector3 toTarget = (target.position - transform.position).normalized;
+        float dot = Vector3.Dot(transform.forward, toTarget);
+
+        // Draw arrows
+        Gizmos.color = Color.green;
+        Gizmos.DrawLine(transform.position, transform.position + transform.forward * 2); // forward
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawLine(transform.position, transform.position + toTarget * 2); // to target
+
+        // Label
+        #if UNITY_EDITOR
+        UnityEditor.Handles.Label(transform.position + Vector3.up * 2, "Dot = " + dot.ToString("F2"));
+        #endif
+    }
+}
+
+| Code Condition    | Meaning                                       |
+| ----------------- | --------------------------------------------- |
+| `if (dot > 0.7f)` | Enemy is **in front** (within ~45° view cone) |
+| `if (dot < 0)`    | Enemy is **behind**                           |
+| `if (dot ≈ 0)`    | Enemy is **to the side**                      |
+
+
+
