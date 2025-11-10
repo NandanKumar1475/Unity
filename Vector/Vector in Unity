@@ -52,6 +52,10 @@ Y = Up/Down
 
 Z = Forward/Backward
 
+Example :-
+new Vector3(0, 0, 5)   // Move 5 units forward
+new Vector3(5, 0, 0)   // Move 5 units right
+new Vector3(0, 2, 0)   // Move 2 units up
 We’ll also create a small visual demo:
 🎯 A cube moving in different directions using vectors.
 
