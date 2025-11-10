@@ -1,0 +1,62 @@
+
+## NOTES: Vector3.forward vs transform.forward (Unity)
+
+### Vector3.forward
+
+* Value is always **(0, 0, 1)**
+* This is **World Space Forward**
+* This never changes
+* Not related to object rotation
+* Movement example (moves always world forward direction):
+
+```csharp
+transform.position += Vector3.forward * speed * Time.deltaTime;
+```
+
+### transform.forward
+
+* This depends on the **object's rotation**
+* This is **Object Local Forward**
+* This changes when the object rotates
+* Movement example (moves in the direction object is facing):
+
+```csharp
+transform.position += transform.forward * speed * Time.deltaTime;
+```
+
+### Easy memory line:
+
+> Vector3.forward = world forward
+> transform.forward = object forward
+
+### Real Use Case
+
+* Use `transform.forward` when you want player, bullets, enemies to move where they are facing.
+* Use `Vector3.forward` if you want constant world forward movement (like camera dolly, environment moving, rail movement).
+
+### Interview Trick Remembrance Example:
+
+If cube rotated 90° right:
+
+* Vector3.forward still = (0,0,1)
+* transform.forward = (1,0,0)
+
+---
+
+### Mini Diagram
+
+```
+World Forward (North): Vector3.forward
+Object forward (depends on rotation): transform.forward
+```
+
+---
+
+If you want, next I will give same style notes for:
+
+* magnitude (vector length)
+* normalized vector
+* dot product
+* cross product
+
+Which one do you want to make notes next?
