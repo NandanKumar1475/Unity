@@ -1,0 +1,68 @@
+1 — Mathf.Round (and RoundToInt)
+--> What it does (simple):
+Rounds a floating number to the nearest whole number.
+Mathf.Round(2.3f) -> 2.0f
+Mathf.Round(2.6f) -> 3.0f
+Mathf.RoundToInt(2.6f) -> 3 (returns int)
+Why games use it:
+When you need whole numbers (pixel coordinates, inventory counts, UI labels), or when you want to snap values to integer steps.
+Example Code : - 
+
+float speed = 2.7f;
+int displaySpeed = Mathf.RoundToInt(speed);  // 3
+float rounded = Mathf.Round(speed);          // 3.0f
+
+// UI example: show player level as int
+int level = Mathf.RoundToInt(playerExp / 100f);
+
+2 — Mathf.Clamp (and Clamp01)
+|-------------------------------------|
+   -->👉 Mathf.Clamp(value, min, max)
+logic Behind this -->
+if (value < min) return min;
+else if (value > max) return max;
+else return value;
+
+It forces a number to stay between a minimum and maximum range.
+Think of it like a guardrail — if your value goes beyond limits, Clamp pulls it back inside.
+🧍‍♂️ Scenario 1 — Player Health System
+public float health = 100f;
+public float maxHealth = 100f;
+
+void TakeDamage(float damage)
+{
+    health -= damage;
+    health = Mathf.Clamp(health, 0f, maxHealth);
+}
+
+🏃 Scenario 2 — Controlling Player Speed
+float speed = 0f;
+public float maxSpeed = 10f;
+public float acceleration = 2f;
+
+void Update()
+{
+    if (Input.GetKey(KeyCode.W))
+        speed += acceleration * Time.deltaTime;
+    else
+        speed -= acceleration * Time.deltaTime;
+
+    speed = Mathf.Clamp(speed, 0f, maxSpeed);
+    transform.Translate(Vector3.forward * speed * Time.deltaTime);
+}
+🧩 Scenario 4 — UI Slider or Fill Amount
+If you’re controlling a health bar or progress bar manually:
+float fillAmount = currentXP / requiredXP;
+fillAmount = Mathf.Clamp01(fillAmount); // 0 to 1 range
+healthBar.fillAmount = fillAmount;
+
+📸 Scenario 4 — Smooth Camera Zoom
+public Camera cam;
+float zoomSpeed = 50f;
+
+void Update()
+{
+    float scroll = Input.GetAxis("Mouse ScrollWheel");
+    cam.fieldOfView -= scroll * zoomSpeed * Time.deltaTime;
+    cam.fieldOfView = Mathf.Clamp(cam.fieldOfView, 30f, 80f);
+}
