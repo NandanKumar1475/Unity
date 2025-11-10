@@ -1,0 +1,45 @@
+🌍 Understanding Unity’s 3D World
+
+Imagine the Unity Scene View as a big 3D box:
+| Axis | Direction              | Color in Scene View |
+| ---- | ---------------------- | ------------------- |
+| X    | Left (−) / Right (+)   | **Red**             |
+| Y    | Down (−) / Up (+)      | **Green**           |
+| Z    | Back (−) / Forward (+) | **Blue**            |
+
+Code Example :-
+using UnityEngine;
+
+public class VectorDirectionDemo : MonoBehaviour
+{
+    public float moveSpeed = 2f;
+
+    void Update()
+    {
+        // Move Right (+X)
+        if (Input.GetKey(KeyCode.D))
+            transform.position += Vector3.right * moveSpeed * Time.deltaTime;
+
+        // Move Left (-X)
+        if (Input.GetKey(KeyCode.A))
+            transform.position += Vector3.left * moveSpeed * Time.deltaTime;
+
+        // Move Up (+Y)
+        if (Input.GetKey(KeyCode.E))
+            transform.position += Vector3.up * moveSpeed * Time.deltaTime;
+
+        // Move Down (-Y)
+        if (Input.GetKey(KeyCode.Q))
+            transform.position += Vector3.down * moveSpeed * Time.deltaTime;
+
+        // Move Forward (+Z)
+        if (Input.GetKey(KeyCode.W))
+            transform.position += Vector3.forward * moveSpeed * Time.deltaTime;
+
+        // Move Backward (-Z)
+        if (Input.GetKey(KeyCode.S))
+            transform.position += Vector3.back * moveSpeed * Time.deltaTime;
+    }
+}
+
+
