@@ -1,0 +1,7 @@
+A normalized vector means:
+  --> A vector whose length = 1, but direction is same.
+
+| Term          | Type         | Does It Modify Original Vector?                   | Returns                     | Use Case                                                               |
+| ------------- | ------------ | ------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------- |
+| `normalized`  | **Property** | ❌ No (it creates a **copy**)                      | A **new normalized vector** | When you want to use a *clean*, unit version without changing original |
+| `Normalize()` | **Method**   | ✅ Yes (it **changes** the original vector itself) | **void** (nothing)          | When you want to overwrite or clean your existing vector               |
