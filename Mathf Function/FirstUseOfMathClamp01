@@ -1,0 +1,35 @@
+🧩 Scenario 4 — UI Slider or Fill Amount
+using UnityEngine;
+using UnityEngine.UI;
+
+public class FirstUseOfMathClamp01 : MonoBehaviour
+{
+    float minHealth = 0f;
+    float maxHealth = 100f;
+    float health = 100f;
+
+    public Image bgImage;
+    public Image fillImage;
+
+    void ReduceHealth(int damage)
+    {
+        health -= damage;
+
+        health = Mathf.Clamp(health, minHealth, maxHealth);
+
+        float fillAmount = health  / maxHealth;
+
+        fillAmount = Mathf.Clamp01(fillAmount);
+        fillImage.fillAmount = fillAmount; ;
+
+        Debug.Log("Current Health: " + health);
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Enemy"))
+        {
+            ReduceHealth(10);
+        }
+    }
+}
