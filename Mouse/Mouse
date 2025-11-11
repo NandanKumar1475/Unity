@@ -1,0 +1,40 @@
+Old Input API :-
+
+Input.GetMouseButtonDown(0) — left button pressed this frame.
+
+Input.GetMouseButtonUp(0) — released this frame.
+
+Input.GetMouseButton(0) — held down.
+
+Input.mousePosition — cursor position in screen pixels (Vector3: x,y, z = 0).
+
+Input.GetAxis("Mouse ScrollWheel") — wheel delta.
+
+
+--> Example — click to print world position (2D world using orthographic camera):
+using UnityEngine;
+
+public class OldMouseExample : MonoBehaviour
+{
+    void Update()
+    {
+        if (Input.GetMouseButtonDown(0)) // left click
+        {
+            Vector3 screenPos = Input.mousePosition;
+            // For 2D orthographic camera, z should be distance from camera to object plane
+            screenPos.z = -Camera.main.transform.position.z;
+            Vector3 worldPos = Camera.main.ScreenToWorldPoint(screenPos);
+            Debug.Log("Clicked world pos: " + worldPos);
+        }
+    }
+}
+--> Raycast to click 3D objects:
+
+if (Input.GetMouseButtonDown(0))
+{
+    Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+    if (Physics.Raycast(ray, out RaycastHit hit, 100f))
+    {
+        Debug.Log("Hit: " + hit.collider.name);
+    }
+}
