@@ -1,0 +1,41 @@
+public class Child_Property : MonoBehaviour 
+{
+     public Transform ring ;
+	 List<GameObject> ring =  new List<GameObject>();
+	 
+	 
+	 for(ring.Transfrom child in Transfrom)
+	 {
+	    ring.Add(child.GameObject);
+	 }
+	 
+	 
+}
+public class Child_count : MonoBehaviour 
+{
+   // creating gameObject dynimically 
+   private void Awake()
+   {
+      GameObject go = new GameObject("Parent");  // this Will create Empty GameObject named Top ;
+	  Random.InitState(System.Environment.TicketCount);
+	  
+	  for(int i = 0 ; i < Random.Range(3,6);i++)
+	  {
+	     GameObject go2 =  new GameObject("Middle" + i.toString());
+		 
+		 go2.transform.parent =  go.transform ;   //
+		 go2.transform.SetParent(go.transform);
+	  }
+	  
+	  
+	  
+   }
+   
+   
+   privare void Start()
+   {
+      GameObject go =  GameObject.Find("top") ;
+	  Debug.log(go.name + "has" + Random.Range(0,go.transform,childCount)) ;
+   }
+   
+}

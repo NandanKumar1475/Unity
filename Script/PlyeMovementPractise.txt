@@ -1,0 +1,44 @@
+// player movement 
+
+[RequireComponent[typoeof(charactercollider)]
+public void PlayerMovement : MonoBehaviour 
+{
+    private Charctercontroller controllers ;
+	void Awake()
+	{
+	  controllers =  GetComponent<Charctercontroller>();
+	  
+	}
+
+    private void Update()
+	{
+	    GroundCheck();
+		ApplyGravity();
+	
+	}
+	
+	private bool isGrounded ;
+	private float verticalVelocity  ;
+	private Void GroundCheck()
+	{
+	   isGrounded  = controllers.isGrounded ;
+	   if(isGrounded && verticalVelocity < 0f)
+	   {
+	          verticalVelocity =  -2f;
+	   }
+	}
+	
+	
+	//Apply Gravithy 
+	private float terminalVelocity =  50f ;
+	private float gravity =  -9.8f;
+	private void ApplyGravity()
+	{
+	   if(isGrounded && verticalVelocity < terminalVelocity )
+	   {
+	       verticalVelocity =  verticalVelocity + gravity* Time * time.deltatime ;
+	   }
+	   
+	    controllers.Move(vertical3.up * verticalvelocity * time.deltatime ;
+	}
+}

@@ -1,0 +1,49 @@
+using TMPro;
+using UnityEditor.SearchService;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+public class StudentTileUI : MonoBehaviour
+{
+    public TextMeshProUGUI nameText;
+    public TextMeshProUGUI healthtext;
+    public TextMeshProUGUI levelText;
+
+    private StudentData studentdata;
+
+    public void SetData(StudentData data)
+    {
+        studentdata = data;
+
+        if (nameText != null)
+            nameText.text = data.name;
+
+        if (healthtext != null)
+            healthtext.text = data.health.ToString();
+
+        if (levelText != null)
+            levelText.text = data.level.ToString();
+    }
+
+    public void OnTileClicked()
+    {
+        if (studentdata == null)
+        {
+            Debug.LogWarning("Tile has no data.");
+            return;
+        }
+
+        if (SelectionManager.Instance == null)
+        {
+            Debug.LogWarning("SelectionManager not found in scene.");
+            return;
+        }
+
+     
+        SelectionManager.Instance.SetSelectedStudent(studentdata);
+
+        Debug.Log("Tile Clicked: " + studentdata.name);
+
+        SceneManager.LoadScene("StudentSpawan");
+    }
+}

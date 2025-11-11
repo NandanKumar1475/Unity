@@ -1,0 +1,27 @@
+using TMPro;
+using UnityEngine;
+
+public class StudentBehaviour : MonoBehaviour
+{
+    public TextMeshProUGUI nameUI;
+    public TextMeshProUGUI healthUI;
+    public TextMeshProUGUI levelUI;  
+
+    public void ApplyData(StudentData data)
+    {
+        if (data == null)
+        {
+            Debug.LogWarning("Student data is null, cannot apply.");
+            return;
+        }
+
+        if (nameUI != null)
+            nameUI.text = "Name: " + data.name;
+
+        if (healthUI != null)
+            healthUI.text = "Health: " + data.health;
+
+        if (levelUI != null)
+            levelUI.text = "Level: " + data.level;
+    }
+}

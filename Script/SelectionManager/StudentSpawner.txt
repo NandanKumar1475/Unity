@@ -1,0 +1,30 @@
+using UnityEngine;
+
+public class StudentSpawner : MonoBehaviour
+{
+    public GameObject studentPrefab;
+    public Transform spawnPoint;
+
+    private void Start()
+    {
+        StudentData data = SelectionManager.Instance.SelectedStudent;
+
+        if (data == null)
+        {
+            Debug.LogWarning("No selected student found! Please select a student first.");
+            return;
+        }
+
+        GameObject go = Instantiate(studentPrefab, spawnPoint.position, Quaternion.identity);
+
+        StudentBehaviour behaviour = go.GetComponent<StudentBehaviour>();
+        if (behaviour != null)
+        {
+            behaviour.ApplyData(data); // This will now set Name, Health, and Level
+        }
+        else
+        {
+            Debug.LogError("StudentBehaviour script missing in prefab!");
+        }
+    }
+}

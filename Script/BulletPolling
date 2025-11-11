@@ -1,0 +1,39 @@
+public class SimpleObjectPooling : MonoBehaviour 
+{
+	[Serlizefiled] private GameObject bulletPrefabs ;
+	[Serlizifiled] private int initalSize ;
+	
+	private List<GameObject> pool;
+	
+	private void Awake()
+	{
+		GameObject obj = new List<GameObject>(initalSize);
+		for(int i = 0 ; i < initalSize ; i++)
+		{
+			instantiate(bulletPrefabs , transform);
+			obj.setActive(false);
+			obj.Add(pool);
+		}
+	}
+	
+	public GameObject Get()
+	{
+		for(int i = 0 ; i < pool.count ; i++ )
+		{
+			if(pool[i].activeInhirarchy)
+			{
+				pool.setActive(true);
+				return pool[i];
+		}
+		
+		return null;
+	}
+	
+	public Void Return(GameObject obj)
+	{
+		obj.setActive(false);
+		obj.transform.setParent(transform);
+	}
+	
+	
+}

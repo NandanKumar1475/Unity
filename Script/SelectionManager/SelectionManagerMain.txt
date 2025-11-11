@@ -1,0 +1,10 @@
+// -- > selction Manager 
+
+public class SelectionManager : MonoBehaviour 
+{
+   // key filed required 
+   
+   public static SelectionManager instance {get , private set};
+   
+   private Dic
+}

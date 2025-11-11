@@ -1,0 +1,27 @@
+using UnityEngine;
+
+public class SelectionManager : MonoBehaviour
+{
+    public static SelectionManager Instance { get; private set; }
+
+    public StudentData SelectedStudent { get; private set; }
+
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        Instance = this;
+        DontDestroyOnLoad(gameObject);
+    }
+
+    public void SetSelectedStudent(StudentData data)
+    {
+        SelectedStudent = data;
+        Debug.Log("Selected Student is now: " + data.name);
+    }
+}

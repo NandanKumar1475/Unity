@@ -1,0 +1,42 @@
+//Draw circle 
+
+public class Circle : MonoBehaviour 
+{
+
+  private GameObject[] soundBox;
+  public float radius = 10f ;
+  
+  public vector3 Centre ;
+  
+  float Spawanpoint ;
+  
+  start()
+  {
+     Centre = transform.postion ;
+	  
+  }
+  
+  void Respawan()
+  {
+      for(int i = 0 ; i < objet.Length ; i++)
+	  {
+	  
+      float angle =  i * (360f / Object.Length) ;
+      float Radianangle =  angle * Mathf.Deg2Rad;
+	  
+	  float x = Centre.x + radius * Mathf.Cos(rad);
+	  float y = Centre.z + radius * Mathf.Sin(rad);
+	  
+	  vector3 spawanPostion = new vector3(x,Centre.y ,z);
+	  if(soundBox[i]!=null)
+	  {
+	     soundBox[i].transform.postion = spawanPostion ;
+	  }
+	  
+	  
+	  }
+  }
+  
+
+
+}

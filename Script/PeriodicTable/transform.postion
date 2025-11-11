@@ -1,0 +1,40 @@
+ //    -----------------transform.position------------
+ 
+ --> This lets you manually set where an object is every frame.
+Notes:
+
+Still not physics-based (no collision). 
+
+
+You can “teleport” objects anywhere instantly (great for respawn or teleport effects).
+
+Perfect for menus, camera transitions, or grid-based movement.
+
+But -->
+ If the Rigidbody and VOliision present in both gameObject then ot works rigidbody means takarayega push hoga 
+ 
+ code--->>>>>>>>>
+  Vector3 newPos = transform.position + new Vector3(moveX, 0, moveZ) * speed * Time.deltaTime;
+  transform.position = newPos;
+  
+  -->WE CAN PERFORM LOTS OF THINGS USING THIS PROPERTY 
+  LIKE --> 
+   1) Calculate Distance between 2 objects
+     --> float dist = Vector3.Distance(transform.position, enemy.position);
+	 
+   2) Look/Face towards another object
+    transform.LookAt(target.position);
+	
+   3) Spawn Effects / Particles / bullets at exact location
+   
+   Instantiate(bulletPrefab, transform.position, transform.rotation);
+   
+   4) Do Physics Calculations
+
+     path finding, steering, procedural animation
+     all use transform.position to find directions
+	 
+	  -->Vector3 dir = (target.position - transform.position).normalized;
+
+
+

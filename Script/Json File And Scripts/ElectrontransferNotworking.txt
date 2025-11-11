@@ -1,0 +1,199 @@
+ElementDataAdapter -----------------------------------
+
+using System.Collections.Generic;
+using UnityEngine;
+
+[DisallowMultipleComponent]
+public class ElementDataAdapter : MonoBehaviour
+{
+    // Assign your existing ElementData script here in Inspector
+    public ElementData elementDataSource;
+
+    void Reset()
+    {
+        if (elementDataSource == null)
+            elementDataSource = GetComponent<ElementData>();
+    }
+
+    public int GetOuterShellCount()
+    {
+        if (elementDataSource == null) return 0;
+        if (elementDataSource.electronShells == null || elementDataSource.electronShells.Count == 0) return 0;
+        return elementDataSource.electronShells[elementDataSource.electronShells.Count - 1];
+    }
+
+    public void RemoveElectronFromOuter()
+    {
+        if (elementDataSource == null || elementDataSource.electronShells == null) return;
+        int last = elementDataSource.electronShells.Count - 1;
+        if (elementDataSource.electronShells[last] > 0)
+            elementDataSource.electronShells[last]--;
+        elementDataSource.electrons--;
+    }
+
+    public void AddElectronToOuter()
+    {
+        if (elementDataSource == null) return;
+        int last = elementDataSource.electronShells.Count - 1;
+        elementDataSource.electronShells[last]++;
+        elementDataSource.electrons++;
+    }
+
+    public void RefreshVisual()
+    {
+        // Refresh the visual in your ElementVisualizer if it has a RefreshVisual() method
+        var viz = GetComponentInChildren<ElementVisualizer>();
+        if (viz != null)
+        {
+            viz.RefreshVisual();
+        }
+    }
+}
+
+
+ElectronTransferManager--------------------------------------------------
+
+using System.Collections;
+using UnityEngine;
+
+public class ElectronTransferManager : MonoBehaviour
+{
+    [Header("Settings")]
+    public GameObject electronPrefab;
+    public Transform transferContainer;
+    public float transferSpeed = 4f;
+    public float arcHeight = 0.5f;
+
+    public void TransferBetween(GameObject donor, GameObject acceptor, int count)
+    {
+        StartCoroutine(TransferRoutine(donor, acceptor, count));
+    }
+
+    IEnumerator TransferRoutine(GameObject donor, GameObject acceptor, int count)
+    {
+        if (donor == null || acceptor == null) yield break;
+
+        var donorData = donor.GetComponent<ElementDataAdapter>();
+        var acceptorData = acceptor.GetComponent<ElementDataAdapter>();
+
+        for (int i = 0; i < count; i++)
+        {
+            donorData.RemoveElectronFromOuter();
+
+            Vector3 start = donor.transform.position;
+            Vector3 end = acceptor.transform.position;
+            GameObject electron = Instantiate(electronPrefab, start, Quaternion.identity, transferContainer);
+
+            float t = 0;
+            Vector3 mid = (start + end) / 2 + Vector3.up * arcHeight;
+
+            while (t < 1f)
+            {
+                t += Time.deltaTime * transferSpeed;
+                Vector3 a = Vector3.Lerp(start, mid, t);
+                Vector3 b = Vector3.Lerp(mid, end, t);
+                electron.transform.position = Vector3.Lerp(a, b, t);
+                yield return null;
+            }
+
+            Destroy(electron);
+
+            acceptorData.AddElectronToOuter();
+            donorData.RefreshVisual();
+            acceptorData.RefreshVisual();
+
+            yield return new WaitForSeconds(0.1f);
+        }
+    }
+}
+
+
+
+
+
+ChemistryRuleEngine--------------------------------------
+
+
+using UnityEngine;
+
+public static class ChemistryRuleEngine
+{
+    public static int CalculateElectronsToTransfer(ElementData donor, ElementData acceptor)
+    {
+        if (donor == null || acceptor == null) return 0;
+
+        int acceptorGoal = acceptor.prefersDuet ? 2 : 8;
+        int donorOuter = donor.electronShells[donor.electronShells.Count - 1];
+        int acceptorOuter = acceptor.electronShells[acceptor.electronShells.Count - 1];
+
+        int needed = Mathf.Max(0, acceptorGoal - acceptorOuter);
+        int available = donorOuter;
+
+        float diff = acceptor.electronegativity - donor.electronegativity;
+
+        if (diff >= 1.5f)
+        {
+            // Strong ionic
+            return Mathf.Min(needed, available);
+        }
+        else if (diff >= 0.5f)
+        {
+            // Partial ionic
+            return Mathf.Min(Mathf.Max(1, needed / 2), available);
+        }
+        else
+        {
+            // Similar electronegativity → covalent (no full transfer)
+            return 0;
+        }
+    }
+}
+
+
+
+
+SelectionDataTransfer-----------------------------------------
+
+using System.Collections.Generic;
+using UnityEngine;
+
+public static class SelectionDataTransfer
+{
+    // Elements chosen in the Periodic Table
+    public static List<ElementData> selectedElements = new List<ElementData>();
+
+    public static void Clear()
+    {
+        selectedElements.Clear();
+    }
+}
+
+
+
+
+SMALL CHANGE TO YOUR SELECTION MANAGER
+public void LoadVisualizerScene()
+{
+    SelectionDataTransfer.Clear();
+
+    foreach (var kv in selectedCounts)
+    {
+        if (symbolToData.TryGetValue(kv.Key, out var data))
+        {
+            for (int i = 0; i < kv.Value; i++)
+                SelectionDataTransfer.selectedElements.Add(data);
+        }
+        else
+        {
+            Debug.LogWarning($"Skipping '{kv.Key}' — no registered ElementData.");
+        }
+    }
+
+    if (SelectionDataTransfer.selectedElements.Count == 0)
+    {
+        Debug.LogWarning("No elements selected!");
+        return;
+    }
+
+    SceneManager.LoadScene("VisualizerScene");
+}

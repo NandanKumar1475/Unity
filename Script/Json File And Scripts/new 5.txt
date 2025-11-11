@@ -1,0 +1,502 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+public static class SelectionDataTransfer
+{
+    // Stores the list of selected elements across scene loads
+    public static List<ElementData> selectedElements = new List<ElementData>();
+
+    // Optional: clear after used
+    public static void Clear()
+    {
+        selectedElements.Clear();
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+using System.Collections.Generic;
+using UnityEngine;
+using TMPro;
+using UnityEngine.UI;
+using UnityEngine.SceneManagement;
+
+/// <summary>
+/// Keeps track of selected elements (symbol -> count) and offers Visualize / Clear functions.
+/// Also updates a simple HUD (SelectedCountText & SelectedListContent).
+/// </summary>
+public class SelectionManager : MonoBehaviour
+{
+    public static SelectionManager Instance { get; private set; }
+
+    // Selected map: symbol -> count
+    public Dictionary<string, int> selectedCounts = new Dictionary<string, int>();
+
+    // Map symbol -> ElementData (so we can look up electronShells)
+    private Dictionary<string, ElementData> symbolToData = new Dictionary<string, ElementData>();
+
+    [Header("HUD (optional)")]
+    public TMP_Text selectedCountText;
+    public RectTransform selectedListContent; // optional small prefab UI to list selections
+    public GameObject selectedListItemPrefab; // prefab with TMP_Text to show "H x2"
+
+    [Header("Spawn")]
+    public ElementVisualizer visualizer; // assign visualizer component (handles actual spawn)
+    public Transform visualsRoot; // where spawned visuals go (same as visualizer can use)
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
+
+    // Register element data for lookup (call from loader when tiles are created)
+    public void RegisterElementData(ElementData e)
+    {
+        if (e == null) return;
+        if (!symbolToData.ContainsKey(e.symbol)) symbolToData[e.symbol] = e;
+    }
+
+    // Toggle selection of one instance: add/remove single selection (toggle on/off)
+    public void ToggleSelection(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null) return;
+        if (!selectedCounts.ContainsKey(e.symbol))
+            selectedCounts[e.symbol] = 1;
+        else
+            selectedCounts.Remove(e.symbol); // toggle off
+
+        UpdateHUD();
+        // Update tile badge if tileUI provided
+        if (tileUI != null) tileUI.SetSelectionBadge(selectedCounts.ContainsKey(e.symbol) ? 1 : 0);
+    }
+
+    // Increment selection (useful if you want multiple copies later)
+    public void AddOne(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null) return;
+        if (!selectedCounts.ContainsKey(e.symbol)) selectedCounts[e.symbol] = 0;
+        selectedCounts[e.symbol]++;
+        UpdateHUD();
+        tileUI?.SetSelectionBadge(selectedCounts[e.symbol]);
+    }
+
+    // Decrement selection
+    public void RemoveOne(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null || !selectedCounts.ContainsKey(e.symbol)) return;
+        selectedCounts[e.symbol]--;
+        if (selectedCounts[e.symbol] <= 0) selectedCounts.Remove(e.symbol);
+        UpdateHUD();
+        tileUI?.SetSelectionBadge(selectedCounts.ContainsKey(e.symbol) ? selectedCounts[e.symbol] : 0);
+    }
+
+    public void ClearSelection()
+    {
+        selectedCounts.Clear();
+        UpdateHUD();
+        // Optionally clear all tile badges in scene (we keep it simple)
+        var tiles = FindObjectsOfType<ElementTileUI>();
+        foreach (var t in tiles) t.SetSelectionBadge(0);
+    }
+
+    void UpdateHUD()
+    {
+        int total = 0;
+        foreach (var kv in selectedCounts) total += kv.Value;
+        if (selectedCountText != null) selectedCountText.text = $"Selected: {total}";
+
+        // Repopulate quick list (simple)
+        if (selectedListContent != null && selectedListItemPrefab != null)
+        {
+            for (int i = selectedListContent.childCount - 1; i >= 0; i--)
+                Destroy(selectedListContent.GetChild(i).gameObject);
+
+            foreach (var kv in selectedCounts)
+            {
+                var go = Instantiate(selectedListItemPrefab, selectedListContent);
+                var txt = go.GetComponentInChildren<TMP_Text>();
+                if (txt != null) txt.text = $"{kv.Key} x{kv.Value}";
+            }
+        }
+    }
+
+    // Visualize selected elements
+    public void VisualizeSelected()
+    {
+        if (visualizer == null)
+        {
+            Debug.LogWarning("No visualizer assigned to SelectionManager.");
+            return;
+        }
+
+        // Build a list of ElementData with counts
+        var list = new List<(ElementData, int)>();
+        foreach (var kv in selectedCounts)
+        {
+            if (symbolToData.TryGetValue(kv.Key, out var data))
+                list.Add((data, kv.Value));
+            else
+                Debug.LogWarning($"No ElementData registered for symbol {kv.Key}");
+        }
+
+        visualizer.SpawnForSelection(list);
+    }
+
+    public void LoadVisualizerScene()
+    {
+        // Clear old data
+        SelectionDataTransfer.Clear();
+
+        // Convert dictionary entries into full element data list
+        foreach (var kv in selectedCounts)
+        {
+            if (symbolToData.TryGetValue(kv.Key, out var data))
+            {
+                for (int i = 0; i < kv.Value; i++)
+                    SelectionDataTransfer.selectedElements.Add(data);
+            }
+        }
+
+        if (SelectionDataTransfer.selectedElements.Count == 0)
+        {
+            Debug.LogWarning("No elements selected!");
+            return;
+        }
+
+        // Load the visualizer scene
+        SceneManager.LoadScene("VisualizerScene");
+    }
+}
+
+
+
+
+
+
+
+
+
+using UnityEngine;
+
+// Simple rotation of a transform to simulate orbit
+public class SimpleOrbit : MonoBehaviour
+{
+    public float rotationSpeed = 30f;
+    void Update()
+    {
+        transform.Rotate(Vector3.forward, rotationSpeed * Time.deltaTime);
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+using System.Collections.Generic;
+using UnityEngine;
+
+public class VisualizerSpawner : MonoBehaviour
+{
+    [Header("Prefabs")]
+    public GameObject spherePrefab;   // nucleus
+    public GameObject ringPrefab;     // ring (circle)
+    public GameObject electronPrefab; // electron (dot)
+
+    [Header("Layout Settings")]
+    public float baseRadius = 0.5f;
+    public float radiusStep = 0.5f;
+    public float orbitSpeed = 30f;
+    public float spacing = 3f;
+
+    void Start()
+    {
+        var list = SelectionDataTransfer.selectedElements;
+        if (list == null || list.Count == 0)
+        {
+            Debug.LogWarning("No elements passed from previous scene!");
+            return;
+        }
+
+        SpawnElements(list);
+        SelectionDataTransfer.Clear(); // optional cleanup
+    }
+
+    void SpawnElements(List<ElementData> list)
+    {
+        float xOffset = 0f;
+
+        foreach (var element in list)
+        {
+            // Parent object for this element
+            GameObject elementParent = new GameObject(element.symbol + "_Atom");
+            elementParent.transform.position = new Vector3(xOffset, 0, 0);
+
+            // Nucleus
+            if (spherePrefab != null)
+            {
+                GameObject sphere = Instantiate(spherePrefab, elementParent.transform);
+                sphere.transform.localPosition = Vector3.zero;
+            }
+
+            // Rings and electrons
+            if (element.electronShells != null)
+            {
+                for (int i = 0; i < element.electronShells.Length; i++)
+                {
+                    int electronCount = element.electronShells[i];
+                    float radius = baseRadius + i * radiusStep;
+
+                    // Create ring
+                    if (ringPrefab != null)
+                    {
+                        GameObject ring = Instantiate(ringPrefab, elementParent.transform);
+                        ring.transform.localScale = Vector3.one * radius * 2f;
+                        ring.transform.localPosition = Vector3.zero;
+                    }
+
+                    // Create electrons evenly spaced
+                    for (int e = 0; e < electronCount; e++)
+                    {
+                        float angle = (360f / Mathf.Max(1, electronCount)) * e;
+                        float rad = angle * Mathf.Deg2Rad;
+                        Vector3 pos = new Vector3(Mathf.Cos(rad) * radius, Mathf.Sin(rad) * radius, 0f);
+
+                        GameObject electron = Instantiate(electronPrefab, elementParent.transform);
+                        electron.transform.localPosition = pos;
+                    }
+
+                    // Add orbit rotation
+                    var rotator = elementParent.AddComponent<SimpleOrbit>();
+                    rotator.rotationSpeed = orbitSpeed;
+                }
+            }
+
+            xOffset += spacing;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+using System.Collections.Generic;
+using UnityEngine;
+using TMPro;
+
+public class VisualizerSpawnerWithRings : MonoBehaviour
+{
+    [Header("Prefabs")]
+    public GameObject spherePrefab;     // Nucleus prefab (contains Label_H2)
+    public GameObject ringPrefab;       // Prefab containing a ParticleSystem (the ring)
+    public GameObject electronPrefab;   // Electron prefab (small glowing sphere)
+
+    [Header("Spawn Settings")]
+    public float desiredNucleusScale = 2.0f;   // Visual scale of nucleus
+    public float baseRingRadius = 2.0f;        // Distance of first ring
+    public float ringRadiusStep = 1.0f;        // Distance between rings
+    public float desiredElectronWorldSize = 0.6f;
+    public bool orbitInXZPlane = false;        // If true, rings orbit flat (like discs)
+    public float baseSpacingBuffer = 2.0f;     // Extra gap between atoms
+
+    [Header("Ring Visual Settings")]
+    public float ringStrokeSize = 0.12f;       // Thickness of the ring particles
+
+    private List<GameObject> spawnedAtoms = new List<GameObject>();
+
+    void Start()
+    {
+        var selected = SelectionDataTransfer.selectedElements;
+        if (selected == null || selected.Count == 0)
+        {
+            Debug.LogWarning("[VisualizerSpawner] No elements received from previous scene!");
+            return;
+        }
+
+        SpawnAtoms(selected);
+        SelectionDataTransfer.Clear();
+    }
+
+    void SpawnAtoms(List<ElementData> elements)
+    {
+        float xOffset = 0f;
+
+        foreach (var element in elements)
+        {
+            // --- Create root atom container ---
+            GameObject atomGO = new GameObject(element.symbol + "_Atom");
+            atomGO.transform.position = new Vector3(xOffset, 0f, 0f);
+            spawnedAtoms.Add(atomGO);
+
+            // --- Create nucleus prefab ---
+            GameObject nucleus = Instantiate(spherePrefab, atomGO.transform);
+            nucleus.name = "Nucleus";
+            nucleus.transform.localPosition = Vector3.zero;
+            nucleus.transform.localRotation = Quaternion.identity;
+            nucleus.transform.localScale = Vector3.one * desiredNucleusScale;
+
+            // --- Update label (H, O, Na, etc.) ---
+            var labelUpdater = nucleus.GetComponent<LabelSymbolUpdater>();
+            if (labelUpdater != null)
+            {
+                labelUpdater.SetSymbol(element.symbol);
+            }
+            else
+            {
+                // Fallback: manually find label if component missing
+                Transform label = nucleus.transform.Find("Label_H2");
+                if (label != null)
+                {
+                    var tmp = label.GetComponent<TextMeshPro>();
+                    if (tmp != null)
+                        tmp.text = element.symbol;
+                }
+            }
+
+            // --- Add the electron controller ---
+            var controller = nucleus.AddComponent<MultiRingElectronController>();
+            controller.orbitInXZPlane = orbitInXZPlane;
+            controller.angularSpeedDegrees = 80f;
+
+            // --- Create rings and electrons ---
+            if (element.electronShells != null)
+            {
+                for (int i = 0; i < element.electronShells.Length; i++)
+                {
+                    int electronCount = element.electronShells[i];
+                    if (electronCount <= 0) continue;
+
+                    // Create ring
+                    GameObject ringGO = Instantiate(ringPrefab, nucleus.transform);
+                    ringGO.name = $"Ring_{i}";
+                    ringGO.transform.localPosition = Vector3.zero;
+                    ringGO.transform.localRotation = Quaternion.identity;
+                    ringGO.transform.localScale = Vector3.one;
+
+                    // Adjust particle system radius & stroke
+                    var ps = ringGO.GetComponent<ParticleSystem>();
+                    if (ps != null)
+                    {
+                        var shape = ps.shape;
+                        shape.radius = baseRingRadius + i * ringRadiusStep;
+
+                        var main = ps.main;
+                        main.startSize = ringStrokeSize;
+                    }
+                }
+
+                // Refresh ring discovery
+                controller.RefreshAllRings();
+
+                // --- Spawn electrons ---
+                for (int i = 0; i < element.electronShells.Length; i++)
+                {
+                    int electronCount = element.electronShells[i];
+                    if (electronCount <= 0) continue;
+
+                    var ringPS = controller.GetRingParticleSystem(i);
+                    if (ringPS == null) continue;
+
+                    float angleStep = 360f / Mathf.Max(1, electronCount);
+
+                    for (int e = 0; e < electronCount; e++)
+                    {
+                        float angle = e * angleStep;
+                        GameObject electron = Instantiate(electronPrefab);
+                        controller.AttachElectronToRingAtAngle(ringPS, electron.transform, angle, 0f);
+                        SetUniformWorldScale(electron.transform, desiredElectronWorldSize);
+                    }
+                }
+
+                controller.RefreshAllRings();
+            }
+
+            // --- Smart Spacing (prevents overlapping atoms) ---
+            int shellCount = element.electronShells != null ? element.electronShells.Length : 1;
+            float outerRingRadius = baseRingRadius + (shellCount - 1) * ringRadiusStep;
+            float safeDistance = (outerRingRadius * 2f) + baseSpacingBuffer;
+
+            xOffset += safeDistance;
+        }
+    }
+
+    /// <summary>
+    /// Keeps electron world size consistent even under scaled rings.
+    /// </summary>
+    void SetUniformWorldScale(Transform child, float desiredWorldSize)
+    {
+        if (child == null) return;
+
+        Transform parent = child.parent;
+        if (parent == null)
+        {
+            child.localScale = Vector3.one * desiredWorldSize;
+            return;
+        }
+
+        Vector3 lossy = parent.lossyScale;
+        float maxParentScale = Mathf.Max(Mathf.Abs(lossy.x), Mathf.Abs(lossy.y), Mathf.Abs(lossy.z));
+        if (maxParentScale <= 1e-5f) maxParentScale = 1f;
+        float local = desiredWorldSize / maxParentScale;
+        child.localScale = Vector3.one * local;
+    }
+}
+
+
+problem :-  not in the camera give some 3d some 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

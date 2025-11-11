@@ -1,0 +1,170 @@
+// ElementDetailsPanel
+using UnityEngine;
+using TMPro;
+using UnityEngine.UI;
+
+public class ElementDetailsPanel : MonoBehaviour
+{
+    public GameObject root; // the panel root (this GameObject)
+    public TMP_Text symbol;
+    public TMP_Text nameText;
+    public TMP_Text atomicNumber;
+    public TMP_Text description;
+    public Button closeButton;
+
+    void Start()
+    {
+        if (closeButton != null) closeButton.onClick.AddListener(Hide);
+        Hide();
+    }
+
+    public void Show(ElementData e)
+    {
+        if (e == null) return;
+        if (symbol != null) symbol.text = e.symbol;
+        if (nameText != null) nameText.text  = e.name;
+        if (atomicNumber != null) atomicNumber.text = "Z: " + e.atomicNumber;
+        if (description != null) description.text = e.description;
+        if (root != null) root.SetActive(true);
+    }
+
+    public void Hide()
+    {
+        if (root != null) root.SetActive(false);
+    }
+}
+
+
+///
+
+using UnityEngine;
+
+public class ElementUIManager : MonoBehaviour
+{
+    public static ElementUIManager Instance { get; private set; }
+
+    [Header("References")]
+    public GameObject elementTilePrefab; // ElementTile prefab
+    public RectTransform contentParent;  // Content under ScrollView/Viewport
+    public string jsonResourceName = "elements"; // Resources/elements.json
+
+    [Header("Details")]
+    public ElementDetailsPanel detailsPanel;
+
+    ElementDatabase db;
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
+
+    void Start()
+    {
+        LoadJsonAndPopulate();
+    }
+
+    void LoadJsonAndPopulate()
+    {
+        var ta = Resources.Load<TextAsset>(jsonResourceName);
+        if (ta == null)
+        {
+            Debug.LogError($"Could not find JSON at Resources/{jsonResourceName}.json");
+            return;
+        }
+
+        db = JsonUtility.FromJson<ElementDatabase>(ta.text);
+        if (db == null || db.elements == null || db.elements.Length == 0)
+        {
+            Debug.LogWarning("Element database empty or failed to parse.");
+            return;
+        }
+
+        // Clear existing children (editor play test)
+        for (int i = contentParent.childCount - 1; i >= 0; i--)
+            Destroy(contentParent.GetChild(i).gameObject);
+
+        foreach (var e in db.elements)
+        {
+            var go = Instantiate(elementTilePrefab, contentParent);
+            var tile = go.GetComponent<ElementTileUI>();
+            if (tile != null) tile.Setup(e);
+            else Debug.LogError("ElementTilePrefab missing ElementTileUI script.");
+        }
+    }
+
+    public void ShowDetails(ElementData e)
+    {
+        if (detailsPanel != null) detailsPanel.Show(e);
+    }
+}
+
+
+//-->
+using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
+
+public class ElementTileUI : MonoBehaviour
+{
+    [Header("UI refs")]
+    public TMP_Text symbolText;
+    public TMP_Text nameText;
+    public TMP_Text atomicNumberText;
+    public Image backgroundImage;
+    public Button tileButton; // assign root Button here
+
+
+    ElementData(ClassName) boundElement;
+
+    public void Setup(ElementData e)
+    {
+        boundElement = e;
+        if (symbolText != null) symbolText.text = e.symbol;
+        if (nameText != null) nameText.text = e.name;
+        if (atomicNumberText != null) atomicNumberText.text = e.atomicNumber.ToString();
+
+        if (backgroundImage != null && !string.IsNullOrEmpty(e.uiColorHex))
+        {
+            if (ColorUtility.TryParseHtmlString(e.uiColorHex, out var c))
+                backgroundImage.color = c;
+        }
+
+        if (tileButton != null)
+        {
+            tileButton.onClick.RemoveAllListeners();
+            tileButton.onClick.AddListener(OnTileClicked);
+        }
+    }
+
+    void OnTileClicked()
+    {
+        if (ElementUIManager.Instance != null)
+            ElementUIManager.Instance.ShowDetails(boundElement);
+    }
+}
+
+
+//-->
+using System;
+using UnityEngine;
+
+[Serializable]
+public class ElementData
+{
+    public string symbol;
+    public string name;
+    public int atomicNumber;
+    public int electrons;
+    public int neutrons;
+    public int[] electronShells;
+    public int valenceElectrons;
+    public string uiColorHex;
+    public string description;
+}
+
+[Serializable]
+public class ElementDatabase
+{
+    public ElementData[] elements;
+}

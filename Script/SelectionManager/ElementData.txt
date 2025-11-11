@@ -1,0 +1,23 @@
+// ElementData.cs
+using System;
+
+[Serializable]
+public class ElementData
+{
+    public string symbol;
+    public string name;
+    public int atomicNumber;
+    public int electrons;           // total electrons (optional)
+    public int neutrons;            // optional for nucleus visuals
+    public int[] electronShells;    // e.g. [2,8,1]
+    public int valenceElectrons;    // number of valence electrons
+    public float electronegativity; // Pauling EN (0 if unknown)
+    public string uiColorHex;       // optional UI color
+    public string description;
+}
+
+[Serializable]
+public class ElementDatabase
+{
+    public ElementData[] elements;
+}
