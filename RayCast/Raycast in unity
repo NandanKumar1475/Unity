@@ -100,6 +100,21 @@ When your ray hits something, Unity gives back an object of type RaycastHit.
 | `.distance`  | float     | How far from origin it hit              |
 | `.transform` | Transform | Transform of the hit object             |
 
+Fills a RaycastHit structure with:
+hit.point → exact 3D point where ray met collider
+hit.normal → surface facing direction (perpendicular vector)
+hit.collider → which collider was hit
+hit.transform → which GameObject it belongs to
+hit.distance → how far from origin the hit happened
+
+--->
+| Term           | Mechanically                        | Real Meaning               |
+| -------------- | ----------------------------------- | -------------------------- |
+| **Ray**        | Infinite line (origin + direction)  | Pure math representation   |
+| **Raycast**    | Line checked against colliders      | “What does this line hit?” |
+| **RaycastHit** | Collision data                      | “Where, what, and how far” |
+| **Used For**   | Interaction, detection, measurement | From shooting to selection |
+
 -------------------------------------------------------------------------------
 --> ScreenPointToRay (mouse) — Select objects with mouse
 -------------------------------------------------------------------------------
