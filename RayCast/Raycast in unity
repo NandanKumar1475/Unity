@@ -115,6 +115,38 @@ hit.distance → how far from origin the hit happened
 | **RaycastHit** | Collision data                      | “Where, what, and how far” |
 | **Used For**   | Interaction, detection, measurement | From shooting to selection |
 
+-----------------------------------------------------------------------------------
+1️⃣ UI Ray System (EventSystem)
+
+[Mouse Click] or [Touch]
+        ↓
+  EventSystem.current
+        ↓
+  → InputModule detects pointer
+        ↓
+  → GraphicRaycaster fires a "UI Ray"
+        ↓
+  → Checks Canvas for UI elements
+        ↓
+  If a UI element is hit → send events:
+        OnPointerEnter
+        OnPointerDown
+        OnClick
+        OnPointerExit
+
+-----------------------------------------------------------------
+Physics Ray System (3D World)
+
+[Mouse Click]
+        ↓
+Camera.ScreenPointToRay(Input.mousePosition)
+        ↓
+Physics.Raycast(ray, out hit, maxDistance)
+        ↓
+PhysX Engine checks colliders in world
+        ↓
+If hit → returns RaycastHit (with collider, point, normal)
+
 -------------------------------------------------------------------------------
 --> ScreenPointToRay (mouse) — Select objects with mouse
 -------------------------------------------------------------------------------
