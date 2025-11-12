@@ -1,0 +1,39 @@
+using UnityEngine;
+
+public class SimpleSelection : MonoBehaviour
+{
+    public float maxDistance = 100f;       // how far the ray travels
+    public LayerMask selectable = ~0;      // choose layers in Inspector if needed
+
+    Camera cam;
+
+    void Awake()
+    {
+        cam = Camera.main;
+        if (cam == null) Debug.LogError("No Camera.main found. Tag your camera as MainCamera.");
+    }
+
+    void Update()
+    {
+        if (Input.GetMouseButtonDown(0))
+            TrySelect();
+    }
+
+    void TrySelect()
+    {
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
+        Debug.DrawRay(ray.origin, ray.direction * maxDistance, Color.red, 1f);
+
+        if (Physics.Raycast(ray, out RaycastHit hit, maxDistance, selectable))
+        {
+            Debug.Log($"Selected: {hit.collider.name} at {hit.point} (dist {hit.distance:F2})");
+            // Minimal reaction: toggle green color if MeshRenderer exists
+            var mr = hit.collider.GetComponent<MeshRenderer>();
+            if (mr != null) mr.material.color = Color.green;
+        }
+        else
+        {
+            Debug.Log("No hit");
+        }
+    }
+}
