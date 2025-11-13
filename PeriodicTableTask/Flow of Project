@@ -1,2 +1,76 @@
 1. create script for ElementData and ElementDatabase 
-2.ElementTile
+2.FIleManager --> handle json data 
+3.ElementTile  -- > connected to the selection manager 
+4.selectionManager -->
+5.visulization 
+
+
+
+
+
+
+
+
+Element Tile Ui flow and connection -----------------
+ ┌───────────────────────────────┐
+ │     Start: Setup(element)     │
+ └───────────────┬───────────────┘
+                 │
+                 ▼
+     ┌─────────────────────────┐
+     │ Save element reference  │
+     │   boundElement = e      │
+     └─────────────┬───────────┘
+                   │
+                   ▼
+     ┌─────────────────────────┐
+     │ Update UI Texts         │
+     │ symbol, name, number    │
+     └─────────────┬───────────┘
+                   │
+                   ▼
+     ┌─────────────────────────┐
+     │ Set background color    │
+     │ from e.uiColorHex       │
+     └─────────────┬───────────┘
+                   │
+                   ▼
+     ┌─────────────────────────┐
+     │ Bind Button Events      │
+     │ - Tile: AddOne()        │
+     │ - Add: AddOne()         │
+     │ - Remove: RemoveOne()   │
+     │ - Details: ShowDetails()│
+     └─────────────┬───────────┘
+                   │
+                   ▼
+     ┌─────────────────────────┐
+     │ Register in Selection   │
+     │ SelectionManager.Add(e) │
+     └─────────────┬───────────┘
+                   │
+                   ▼
+     ┌──────────────────────────────┐
+     │ Reset Selection Badge (0)    │
+     └──────────────────────────────┘
+
+----------------------------------------------------------------------------
+ElementUiManager 
+
+                ┌──────────────────┐
+                │ ElementUIManager │
+                └───────┬──────────┘
+                        │
+     ┌──────────────────┼────────────────────┐
+     ▼                  ▼                    ▼
+ElementDatabase    ElementTileUI      ElementDetailsPanel
+     │                  │
+     ▼                  │
+ ElementData            ▼
+                   SelectionManager
+                        │
+                        ▼
+            VisualizerSpawnerWithRings (atom builder)
+
+---------------------------------------------------------
+
