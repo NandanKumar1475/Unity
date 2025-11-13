@@ -1,0 +1,170 @@
+using System;
+using System.Collections.Generic;
+using UnityEngine;
+using TMPro;
+using UnityEngine.SceneManagement;
+
+public class SelectionManager : MonoBehaviour
+{
+    public static SelectionManager Instance { get; private set; }
+
+    private Dictionary<string, int> selectedCounts = new Dictionary<string, int>();
+    private Dictionary<string, ElementData> symbolToData = new Dictionary<string, ElementData>();
+
+    [Header("Display UI ")]
+    public TMP_Text selectedCountText;
+    public RectTransform selectedListContent;
+    public GameObject selectedListItemPrefab;
+
+
+    public event Action OnSelectionChanged;
+
+    void Awake()
+    {
+        if (Instance == null) Instance = this;
+        else Destroy(gameObject);
+    }
+
+    public IReadOnlyDictionary<string, int> GetSelectedCounts() => selectedCounts;
+
+    public int GetCount(string symbol)
+    {
+        if (string.IsNullOrEmpty(symbol)) return 0;
+        return selectedCounts.TryGetValue(symbol, out var c) ? c : 0;
+    }
+
+    public int GetCount(ElementData e) => e == null ? 0 : GetCount(e.symbol);
+
+    public void RegisterElementData(ElementData e)
+    {
+        if (e == null || string.IsNullOrEmpty(e.symbol)) return;
+        symbolToData[e.symbol] = e;
+    }
+
+    public void ToggleSelection(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null) return;
+
+        if (!selectedCounts.ContainsKey(e.symbol))
+            selectedCounts[e.symbol] = 1;
+        else
+            selectedCounts.Remove(e.symbol);
+
+        UpdateHUD();
+        tileUI?.SetSelectionBadge(selectedCounts.ContainsKey(e.symbol) ? selectedCounts[e.symbol] : 0);
+        OnSelectionChanged?.Invoke();
+    }
+
+    public void AddOne(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null) return;
+
+        if (!selectedCounts.ContainsKey(e.symbol))
+            selectedCounts[e.symbol] = 0;
+
+        selectedCounts[e.symbol]++;
+
+        UpdateHUD();
+        tileUI?.SetSelectionBadge(selectedCounts[e.symbol]);
+        OnSelectionChanged?.Invoke();
+    }
+
+    public void RemoveOne(ElementData e, ElementTileUI tileUI = null)
+    {
+        if (e == null || !selectedCounts.ContainsKey(e.symbol)) return;
+
+        selectedCounts[e.symbol]--;
+        if (selectedCounts[e.symbol] <= 0) selectedCounts.Remove(e.symbol);
+
+        UpdateHUD();
+        tileUI?.SetSelectionBadge(selectedCounts.ContainsKey(e.symbol) ? selectedCounts[e.symbol] : 0);
+        OnSelectionChanged?.Invoke();
+    }
+
+    public void ClearSelection()
+    {
+        if (selectedCounts.Count == 0) return;
+
+        selectedCounts.Clear();
+        UpdateHUD();
+
+        var tiles = FindObjectsOfType<ElementTileUI>();
+        foreach (var t in tiles) t.SetSelectionBadge(0);
+
+        OnSelectionChanged?.Invoke();
+    }
+
+    void UpdateHUD()
+    {
+        int total = 0;
+        foreach (var kv in selectedCounts) total += kv.Value;
+        if (selectedCountText != null) selectedCountText.text = $"Selected: {total}";
+
+        if (selectedListContent != null && selectedListItemPrefab != null)
+        {
+            for (int i = selectedListContent.childCount - 1; i >= 0; i--)
+                Destroy(selectedListContent.GetChild(i).gameObject);
+
+            foreach (var kv in selectedCounts)
+            {
+                var go = Instantiate(selectedListItemPrefab, selectedListContent);
+                var txt = go.GetComponentInChildren<TMP_Text>();
+                if (txt != null) txt.text = $"{kv.Key} x{kv.Value}";
+            }
+        }
+    }
+
+
+    public void LoadVisualizerScene()
+    {
+        SelectionDataTransfer.Clear();
+        SelectionDataTransfer.EnsureLists();
+
+        List<ElementData> chosen = new List<ElementData>();
+        foreach (var kv in selectedCounts)
+        {
+            if (symbolToData.TryGetValue(kv.Key, out var data))
+            {
+                for (int i = 0; i < kv.Value; i++)
+                    chosen.Add(data);
+            }
+            else
+            {
+                Debug.LogWarning($"Skipping '{kv.Key}' — no registered ElementData.");
+            }
+        }
+
+        if (chosen.Count == 0)
+        {
+            Debug.LogWarning("No elements selected!");
+            return;
+        }
+
+        if (chosen.Count == 2)
+        {
+            OnTwoElementsSelected(chosen[0], chosen[1]);
+            return;
+        }
+
+        SelectionDataTransfer.selectedElements.Clear();
+        SelectionDataTransfer.selectedElements.AddRange(chosen);
+        SceneManager.LoadScene("VisualizerScene");
+    }
+
+    void OnTwoElementsSelected(ElementData a, ElementData b)
+    {
+        var analysis = BondEvaluator.EvaluateBond(a, b);
+
+        SelectionDataTransfer.EnsureLists();
+        SelectionDataTransfer.elementA = a;
+        SelectionDataTransfer.elementB = b;
+        SelectionDataTransfer.lastAnalysis = TransferResultMapper.FromBondAnalysis(a, b, analysis);
+
+        SelectionDataTransfer.selectedElements.Clear();
+        SelectionDataTransfer.selectedElements.Add(a);
+        SelectionDataTransfer.selectedElements.Add(b);
+
+        SceneManager.LoadScene("VisualizerScene");
+    }
+
+}
