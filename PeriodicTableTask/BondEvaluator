@@ -1,0 +1,151 @@
+// BondEvaluator.cs
+using System;
+using UnityEngine;
+
+[Serializable]
+public class BondAnalysisResult
+{
+    public string bondType;            // "Ionic" / "Polar covalent" / "Nonpolar covalent" / "Not possible"
+    public bool stable;
+    public bool indeterminate;
+    public int formalChargeA;
+    public int formalChargeB;
+    public int electronsTransferred;   // positive -> A -> B, negative -> B -> A
+    public string reason;
+    public int chosenBonds;            // 1/2/3 for covalent; 0 otherwise
+}
+
+public static class BondEvaluator
+{
+    
+    private const float IONIC_EN_THRESHOLD = 1.7f; // only a gate; electron accounting still rules
+    private const float NONPOLAR_MAX_DELTA = 0.4f;
+
+    private static int TargetElectrons(int Z)
+    {
+        // Duet for H/He; Octet for others
+        if (Z == 1 || Z == 2) return 2;
+        return 8;
+    }
+
+    public static BondAnalysisResult EvaluateBond(ElementData A, ElementData B)
+    {
+        var res = new BondAnalysisResult { indeterminate = false };
+
+        if (A == null || B == null || A.valenceElectrons <= 0 || B.valenceElectrons <= 0)
+        {
+            res.bondType = "Not possible";
+            res.reason = "Missing element/valence data.";
+            res.stable = false;
+            return res;
+        }
+
+        int valA = A.valenceElectrons;      // --> no of electrons in outer shell
+        int valB = B.valenceElectrons;
+        int tgtA = TargetElectrons(A.atomicNumber);
+        int tgtB = TargetElectrons(B.atomicNumber);
+        float dEN = Mathf.Abs(A.electronegativity - B.electronegativity);
+
+        // ---------- 1) Try COVALENT (Lewis count) ----------
+        // Required bonding pairs = (total needed electrons to fill shells - total valence) / 2
+        // need per atom = target - valence (can be negative -> treat as 0 for count)
+        int needA = Math.Max(0, tgtA - valA);
+        int needB = Math.Max(0, tgtB - valB);
+        int totalNeed = needA + needB;
+
+        // For a diatomic, the required number of shared pairs must be an INTEGER
+        // and within 1..3 that we can draw (single/double/triple)
+        if (totalNeed % 2 == 0)
+        {
+            int requiredPairs = totalNeed / 2; // proposed bond order
+
+            if (requiredPairs >= 1 && requiredPairs <= 3)
+            {
+                // Check that the resulting nonbonding electrons are >= 0
+                // Nonbonding electrons around each atom after bonding:
+                // nb = target - 2*bondOrder  (since each bond contributes 2 electrons around that atom)
+                int nbA = tgtA - 2 * requiredPairs;
+                int nbB = tgtB - 2 * requiredPairs;
+
+                if (nbA >= 0 && nbB >= 0)
+                {
+                    // Formal charge (simple Lewis estimate):
+                    // FC = valence - (nonbonding electrons + number of bonds)
+                    int fcA = valA - (nbA + requiredPairs);
+                    int fcB = valB - (nbB + requiredPairs);
+
+                    res.chosenBonds = requiredPairs;
+                    res.formalChargeA = fcA;
+                    res.formalChargeB = fcB;
+                    res.electronsTransferred = 0;
+                    res.stable = true;
+
+                    // Label polar/nonpolar by  EN
+                    res.bondType = (dEN < NONPOLAR_MAX_DELTA) ? "Nonpolar covalent" : "Polar covalent";
+                    res.reason = $" Covalent: requires {requiredPairs} bond(s). Octet/duet satisfied. FC(A)= {fcA}, FC(B)= {fcB}.";
+                    return res;
+                }
+            }
+        }
+      
+        if (dEN >= IONIC_EN_THRESHOLD)
+        {
+            // Donor = lower electronegativity (more electropositive)
+            ElementData donor = (A.electronegativity <= B.electronegativity) ? A : B;
+            ElementData acceptor = (donor == A) ? B : A;
+
+            int donorVal = donor.valenceElectrons;
+            int acceptorVal = acceptor.valenceElectrons;
+            int acceptorTarget = TargetElectrons(acceptor.atomicNumber);
+
+            // We model stable ionic as: donor loses ALL its valence (exposes previous shell),
+            // acceptor reaches its target exactly.
+            int maxTransfer = donorVal;
+            int needForAcceptor = acceptorTarget - acceptorVal;
+
+            if (needForAcceptor > 0)
+            {
+                int n = Math.Min(maxTransfer, needForAcceptor);
+
+                // We only accept if BOTH become perfect after the same integer n
+                bool donorPerfect = (donorVal - n) == 0;
+                bool acceptorPerfect = (acceptorVal + n) == acceptorTarget;
+
+                if (donorPerfect && acceptorPerfect)
+                {
+                    int sign = (donor == A) ? +1 : -1;
+                    res.electronsTransferred = sign * n;
+                    res.formalChargeA = (donor == A) ? +n : -n;
+                    res.formalChargeB = (donor == A) ? -n : +n;
+                    res.bondType = "Ionic";
+                    res.stable = true;
+                    res.chosenBonds = 0;
+                    res.reason = $"Ionic: transferred {n} e negative . Donor emptied its valence; acceptor filled to target.";
+                    return res;
+                }
+            }
+        }
+
+        // ---------- 3) Not possible ----------
+        res.bondType = "Not possible";
+        res.stable = false;
+        res.chosenBonds = 0;
+        res.electronsTransferred = 0;
+
+        // Helpful reason
+        if (totalNeed % 2 != 0)
+            res.reason = "Covalent impossible (odd total electron need) and ionic transfer can’t reach exact shells.";
+        else
+        {
+            int requiredPairs = totalNeed / 2;
+            if (requiredPairs == 0)
+                res.reason = "No bonds required (already filled) but diatomic molecule cannot form under this model.";
+            else if (requiredPairs > 3)
+                res.reason = $"Covalent would require bond order {requiredPairs} (>3). Ionic transfer also fails to make exact shells.";
+            else
+                res.reason = "Neither covalent (octet/duet not satisfied) nor ionic (no exact integer transfer) is feasible.";
+        }
+
+        return res;
+    }
+}
