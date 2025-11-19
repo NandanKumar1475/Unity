@@ -41,6 +41,7 @@ public class SelectionManager : MonoBehaviour
         symbolToData[e.symbol] = e;
     }
 
+   // this  toggleSelection is not in  the use so we can remove this 
     public void ToggleSelection(ElementData e, ElementTileUI tileUI = null)
     {
         if (e == null) return;
