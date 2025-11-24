@@ -46,6 +46,12 @@ public static class BondEvaluator
         int tgtB = TargetElectrons(B.atomicNumber);
         float dEN = Mathf.Abs(A.electronegativity - B.electronegativity);
 
+// The difference between EN values determines the bond type:
+// ΔEN	Bond Type	Example
+// 0.0 – 0.4	Nonpolar covalent	H–H, O=O
+// 0.4 – 1.7	Polar covalent	H–Cl, O–H
+// > 1.7	Ionic	Na–Cl, Mg–O
+
         // ---------- 1) Try COVALENT (Lewis count) ----------
         // Required bonding pairs = (total needed electrons to fill shells - total valence) / 2
         // need per atom = target - valence (can be negative -> treat as 0 for count)
@@ -149,3 +155,75 @@ public static class BondEvaluator
         return res;
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// Visualization of Result 
+
+              ┌──────────────────────────────┐
+              │  EvaluateBond(A, B)          │
+              └──────────────────────────────┘
+                           │
+                           ▼
+     ┌────────────────────────────────────────────────────┐
+     │ 1. Read valenceElectrons, electronegativity, etc.  │
+     └────────────────────────────────────────────────────┘
+                           │
+                           ▼
+                 ┌──────────────────────┐
+                 │ 2. Try Covalent Bond │
+                 └──────────────────────┘
+                           │ success
+                           ▼
+      ┌─────────────────────────────────────────────────┐
+      │ Fills: bondType, chosenBonds, formalCharges,    │
+      │ electronsTransferred=0, stable=true, reason…     │
+      └─────────────────────────────────────────────────┘
+                           │
+                           ▼
+                     RETURN RESULT
+
+
+
+If covalent fails:
+                           ▼
+
+                 ┌──────────────────────┐
+                 │ 3. Try Ionic Bond    │
+                 └──────────────────────┘
+                           │ success
+                           ▼
+      ┌─────────────────────────────────────────────────┐
+      │ Fills: bondType=ionic, electronsTransferred!=0, │
+      │ formalCharges, chosenBonds=0, stable=true       │
+      └─────────────────────────────────────────────────┘
+                           │
+                           ▼
+                     RETURN RESULT
+
+
+
+If both fail:
+                           ▼
+              ┌────────────────────────────┐
+              │ 4. Return "Not possible"   │
+              └────────────────────────────┘
