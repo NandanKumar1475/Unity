@@ -155,7 +155,7 @@ public class OptimizedExplorerCamera : MonoBehaviour
         if (rawDirLocal.sqrMagnitude > 1f) rawDirLocal.Normalize();
 
         // Smooth direction in local space (so turning is smooth)
-        smoothedDirection = Vector3.SmoothDamp(smoothedDirection, rawDirLocal, ref directionSmoothVelocity, directionSmoothTime);
+        smoothedDirection = Vector3.SmoothDamphandle (smoothedDirection, rawDirLocal, ref directionSmoothVelocity, directionSmoothTime);
 
         // Target speed depending on sprint
         bool sprinting = Input.GetKey(sprintKey);
