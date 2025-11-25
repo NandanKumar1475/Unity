@@ -1,0 +1,194 @@
+using UnityEngine;
+
+[DisallowMultipleComponent]
+public class FreeCameraSmooth : MonoBehaviour
+{
+    [Header("Speeds")]
+    public float walkSpeed = 5f;
+    public float sprintMultiplier = 2f;
+
+    [Header("Keys")]
+    public KeyCode sprintKey = KeyCode.LeftShift;
+    public KeyCode upKey = KeyCode.E;
+    public KeyCode downKey = KeyCode.Q;
+
+    [Header("Smoothing")]
+    [Tooltip("Time for smoothing local direction changes (smaller = snappier)")]
+    public float directionSmoothTime = 0.08f;
+    [Tooltip("Seconds to reach near target speed (smaller = snappier)")]
+    public float accelerationTime = 0.18f;
+    [Tooltip("Seconds to decelerate to zero (smaller = quicker stop)")]
+    public float decelerationTime = 0.12f;
+    [Tooltip("Final smoothing when applying transform.position (smaller = snappier)")]
+    public float finalPositionSmoothTime = 0.06f;
+
+    [Header("Mouse Look")]
+    public float mouseSensitivity = 6f;
+    [Tooltip("Seconds for Vector2.SmoothDamp for mouse delta (smaller = snappier)")]
+    public float mouseSmoothTime = 0.04f;
+    [Tooltip("Pitch clamp in degrees (look up/down). Typically -80 to +80.")]
+    public float minPitch = -80f;
+    public float maxPitch = 80f;
+    [Tooltip("If true, hold right mouse button to look; otherwise always look.")]
+    public bool holdRightMouseToLook = false;
+    [Tooltip("Lock and hide cursor on start")]
+    public bool lockCursor = false;
+
+    [Header("Human Vertical Limits")]
+    [Tooltip("Minimum camera height (meters) — e.g. crouch height")]
+    public float minHumanHeight = 0.5f;
+    [Tooltip("Maximum camera height (meters) — e.g. standing eyes height")]
+    public float maxHumanHeight = 2.0f;
+    [Tooltip("Multiplier to slow vertical movement compared to horizontal")]
+    public float verticalSpeedMultiplier = 0.5f;
+    [Tooltip("Optional gentle pull downward (units per second) to simulate gravity-like feel. Set 0 to disable.")]
+    public float gravityPull = 0f;
+
+    // movement internals
+    Vector3 smoothedDir = Vector3.zero;
+    Vector3 dirSmoothVel = Vector3.zero;
+
+    float currentSpeed = 0f;
+    float speedSmoothVel = 0f;
+
+    Vector3 targetPosition;
+    Vector3 finalPosSmoothVel = Vector3.zero;
+
+    // mouse look internals
+    float yaw;
+    float pitch;
+    Vector2 mouseDeltaSmooth = Vector2.zero;
+    Vector2 mouseDeltaVel = Vector2.zero;
+
+    void Start()
+    {
+        targetPosition = transform.position;
+
+        // initialize yaw/pitch from current transform
+        Vector3 e = transform.eulerAngles;
+        yaw = e.y;
+        pitch = e.x;
+
+        if (lockCursor)
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+        else
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+    }
+
+    void Update()
+    {
+        HandleMouseLook();
+        HandleMovement();
+        ApplyFinalPositionSmoothing();
+    }
+
+    void HandleMouseLook()
+    {
+        // If configured to require RMB, only look when held
+        if (holdRightMouseToLook && !Input.GetMouseButton(1)) return;
+
+        // Read raw mouse delta and scale
+        Vector2 raw = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * mouseSensitivity;
+
+        // Smooth the raw delta
+        mouseDeltaSmooth = Vector2.SmoothDamp(mouseDeltaSmooth, raw, ref mouseDeltaVel, mouseSmoothTime);
+
+        // Integrate into yaw/pitch
+        yaw += mouseDeltaSmooth.x;
+
+        // IMPORTANT: yaw left unbounded → allows 360+ degree rotation
+        pitch -= mouseDeltaSmooth.y;
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
+
+    void HandleMovement()
+    {
+        // Read raw lateral/forward inputs
+        float f = Input.GetAxisRaw("Vertical");     // W/S
+        float r = Input.GetAxisRaw("Horizontal");   // A/D
+
+        // Vertical input as human-like value (slower than horizontal)
+        float upInput = 0f;
+        if (Input.GetKey(upKey)) upInput += 1f;
+        if (Input.GetKey(downKey)) upInput -= 1f;
+
+        // Apply vertical speed multiplier
+        float u = upInput * verticalSpeedMultiplier;
+
+        // Optional gravity-like pull (small continuous downward offset)
+        if (gravityPull > 0f)
+        {
+            u -= gravityPull * Time.deltaTime;
+        }
+
+        // Build local direction (x = right, y = up, z = forward)
+        Vector3 localDir = new Vector3(r, u, f);
+
+        // Prevent diagonal speed boost
+        if (localDir.sqrMagnitude > 1f)
+            localDir.Normalize();
+
+        // 1) Smooth the direction
+        smoothedDir = Vector3.SmoothDamp(smoothedDir, localDir, ref dirSmoothVel, directionSmoothTime);
+
+        // 2) Sprint & compute target horizontal speed (vertical handled separately)
+        bool sprint = Input.GetKey(sprintKey);
+        float baseSpeed = walkSpeed * (sprint ? sprintMultiplier : 1f);
+        float horizontalMagnitude = new Vector3(smoothedDir.x, 0f, smoothedDir.z).magnitude;
+        float targetSpeed = horizontalMagnitude > 0.01f ? baseSpeed : 0f;
+
+        // 3) Smooth the horizontal speed
+        float speedSmoothTime = (targetSpeed > currentSpeed) ? Mathf.Max(0.001f, accelerationTime) : Mathf.Max(0.001f, decelerationTime);
+        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetSpeed, ref speedSmoothVel, speedSmoothTime);
+
+        // 4) Convert horizontal local -> world using camera rotation (so WASD are relative to view)
+        Vector3 localHorizontal = new Vector3(smoothedDir.x, 0f, smoothedDir.z);
+        Vector3 worldHorizontal = transform.TransformDirection(localHorizontal) * currentSpeed * Time.deltaTime;
+
+        // 5) IMPORTANT FIX: vertical movement along WORLD Y (not camera local up)
+        // This ensures pressing E/Q moves straight up/down in world space regardless of pitch.
+        float verticalSpeedUnitsPerSecond = smoothedDir.y * walkSpeed; // smoothedDir.y already includes verticalSpeedMultiplier
+        Vector3 worldVertical = Vector3.up * (verticalSpeedUnitsPerSecond * Time.deltaTime);
+
+        // Compose final world move
+        Vector3 worldMove = worldHorizontal + worldVertical;
+
+        // Integrate into targetPosition
+        targetPosition += worldMove;
+    }
+
+    void ApplyFinalPositionSmoothing()
+    {
+        // Smoothly move camera toward targetPosition
+        transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref finalPosSmoothVel, finalPositionSmoothTime);
+
+        // Human-style height clamp
+        Vector3 p = transform.position;
+        p.y = Mathf.Clamp(p.y, minHumanHeight, maxHumanHeight);
+        transform.position = p;
+
+        // Keep targetPosition consistent to avoid fighting the clamp
+        targetPosition.y = p.y;
+    }
+
+    /// <summary>
+    /// Reset smoothing anchors when teleporting.
+    /// </summary>
+    public void ResetPositionAnchorToCurrent()
+    {
+        targetPosition = transform.position;
+        finalPosSmoothVel = Vector3.zero;
+        smoothedDir = Vector3.zero;
+        dirSmoothVel = Vector3.zero;
+        currentSpeed = 0f;
+        speedSmoothVel = 0f;
+    }
+}
