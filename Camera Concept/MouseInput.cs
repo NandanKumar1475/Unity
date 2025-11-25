@@ -23,8 +23,27 @@ Move mouse down → Negative
 public class MouseInput : MonoBehaviour
 {
  // how to take input from moudr
-    float MouseX = Input.GetAxisRaw("Mouse X");
-    float MouseY = Input.GetAxixRaw("Mouse Y");
+    float MouseX ;
+    float MouseY ;
+    
+
+    float yaw ;
+    float pitch ;
+
+
+    public void HandleMovement()
+    {
+       MouseX = Input.GetAxisRaw("Mouse X");
+       MouseY = Input.GetAxixRaw("Mouse Y");
+       float scroll = Input.GetAxis("Mouse ScrollWheel");
+
+       yaw += MouseX * sensitivity * Time.deltatime ;
+       pitch -= mouseY * senstivity * Time.deltaTIme ;
+
+       pitch = Math.Clamp(pitch , -80f,80f);
+
+       
+    }
     
     
 }
