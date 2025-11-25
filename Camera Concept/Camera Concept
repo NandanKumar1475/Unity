@@ -1,0 +1,294 @@
+using UnityEngine;
+
+/// <summary>
+/// Optimized free-explorer camera:
+/// - Smooth movement (accel/decel + direction smoothing)
+/// - Smooth mouse look (optional hold-RMB to look)
+/// - Scroll-to-translate OR FOV zoom
+/// - Camera collision (sphere) to avoid going inside geometry
+/// - Cursor remains visible and unlocked so other scripts can select objects
+/// </summary>
+[RequireComponent(typeof(Camera))]
+public class OptimizedExplorerCamera : MonoBehaviour
+{
+    [Header("Movement")]
+    public float walkSpeed = 5f;
+    public float sprintMultiplier = 2.0f;
+    [Tooltip("Seconds to reach near target speed (smaller = snappier)")]
+    public float accelerationTime = 0.18f;
+    [Tooltip("Seconds to decelerate to zero (smaller = quicker stop)")]
+    public float decelerationTime = 0.12f;
+    [Tooltip("Direction smoothing time (smaller = immediate direction changes)")]
+    public float directionSmoothTime = 0.08f;
+    public bool enableVerticalStrafe = true;
+
+    [Header("Vertical Keys")]
+    public KeyCode climbKey = KeyCode.Space;
+    public KeyCode descendKey = KeyCode.LeftControl;
+    public KeyCode altClimbKey = KeyCode.E;
+    public KeyCode altDescendKey = KeyCode.Q;
+
+    [Header("Mouse Look")]
+    public float mouseSensitivity = 6f;
+    [Tooltip("Seconds for SmoothDamp of mouse delta; smaller = snappier")]
+    public float mouseSmoothTime = 0.04f;
+    public float minPitch = -85f;
+    public float maxPitch = 85f;
+    [Tooltip("If true, hold right mouse button to look; cursor remains visible/unlocked.")]
+    public bool holdRightMouseToLook = true;
+
+    [Header("Zoom")]
+    public bool useScrollToTranslate = true; // if false, uses FOV zoom
+    public float scrollZoomSpeed = 10f;      // units per scroll tick
+    public float scrollZoomSmoothTime = 0.06f;
+    public float maxZoomDistance = 200f;     // max distance from start position (translate zoom)
+
+    [Header("FOV Zoom (if used)")]
+    public float minFOV = 25f;
+    public float maxFOV = 90f;
+    public float fovZoomSpeed = 20f;
+    public float fovSmoothTime = 0.07f;
+
+    [Header("Collision")]
+    [Tooltip("Radius of camera collision sphere")]
+    public float collisionRadius = 0.35f;
+    [Tooltip("Layers that block camera movement (set to Environment layer)")]
+    public LayerMask collisionMask;
+    [Tooltip("How fast camera pushes out of collisions (seconds)")]
+    public float collisionSmoothTime = 0.06f;
+    [Tooltip("Minimum distance to keep from collided surface")]
+    public float collisionBuffer = 0.02f;
+
+    [Header("Limits & Misc")]
+    public bool clampHeight = false;
+    public float minHeight = -10f;
+    public float maxHeight = 100f;
+    public KeyCode sprintKey = KeyCode.LeftShift;
+
+    // internals
+    Vector3 targetPosition;
+    Vector3 positionSmoothVelocity = Vector3.zero;
+
+    float yaw;
+    float pitch;
+    Vector2 mouseDeltaSmooth = Vector2.zero;
+    Vector2 mouseDeltaVelocity = Vector2.zero;
+
+    // movement smoothing
+    Vector3 smoothedDirection = Vector3.zero;
+    Vector3 directionSmoothVelocity = Vector3.zero;
+    float currentSpeed = 0f;
+    float speedSmoothVelocity = 0f;
+
+    // zoom smoothing
+    float scrollSmoothRef = 0f;
+    float fovSmoothRef = 0f;
+
+    // collision smoothing
+    Vector3 collisionSmoothRef = Vector3.zero;
+
+    Vector3 startPosition;
+
+    Camera cam;
+
+    void Start()
+    {
+        cam = GetComponent<Camera>();
+        startPosition = transform.position;
+        targetPosition = transform.position;
+
+        Vector3 e = transform.eulerAngles;
+        yaw = e.y;
+        pitch = e.x;
+
+        // Keep cursor visible/unlocked so selection code in other scripts can work.
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    void Update()
+    {
+        HandleMouseLook();
+        HandleMovementInput();
+        HandleScrollZoomOrFOV();
+        PreventCameraClipping(); // adjust targetPosition if it would go into geometry
+        ApplyPositionSmoothing();
+        ApplyHeightClamp();
+    }
+
+    #region Mouse Look
+    void HandleMouseLook()
+    {
+        // If configured to require RMB, only look when held
+        if (holdRightMouseToLook && !Input.GetMouseButton(1)) return;
+
+        // Use raw axes for snappy feel then smooth
+        Vector2 raw = new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * mouseSensitivity;
+        mouseDeltaSmooth = Vector2.SmoothDamp(mouseDeltaSmooth, raw, ref mouseDeltaVelocity, mouseSmoothTime);
+
+        yaw += mouseDeltaSmooth.x;
+        pitch -= mouseDeltaSmooth.y;
+        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+
+        transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+    }
+    #endregion
+
+    #region Movement
+    void HandleMovementInput()
+    {
+        // Gather raw input
+        float forward = Input.GetAxisRaw("Vertical");   // W/S
+        float right = Input.GetAxisRaw("Horizontal");   // A/D
+        float up = 0f;
+
+        if (enableVerticalStrafe)
+        {
+            if (Input.GetKey(climbKey)) up += 1f;
+            if (Input.GetKey(descendKey)) up -= 1f;
+            if (Input.GetKey(altClimbKey)) up += 1f;
+            if (Input.GetKey(altDescendKey)) up -= 1f;
+        }
+
+        Vector3 rawDirLocal = new Vector3(right, up, forward);
+        // keep magnitude <= 1
+        if (rawDirLocal.sqrMagnitude > 1f) rawDirLocal.Normalize();
+
+        // Smooth direction in local space (so turning is smooth)
+        smoothedDirection = Vector3.SmoothDamp(smoothedDirection, rawDirLocal, ref directionSmoothVelocity, directionSmoothTime);
+
+        // Target speed depending on sprint
+        bool sprinting = Input.GetKey(sprintKey);
+        float targetSpeed = walkSpeed * (sprinting ? sprintMultiplier : 1f);
+
+        // If there's input, accelerate toward targetSpeed; otherwise decelerate to 0.
+        float targetMagnitude = smoothedDirection.magnitude > 0.01f ? targetSpeed : 0f;
+
+        // Smooth the speed (using SmoothDamp gives nice ease in/out)
+        float smoothTime = (targetMagnitude > currentSpeed) ? Mathf.Max(0.001f, accelerationTime) : Mathf.Max(0.001f, decelerationTime);
+        currentSpeed = Mathf.SmoothDamp(currentSpeed, targetMagnitude, ref speedSmoothVelocity, smoothTime);
+
+        // Convert smoothed local direction to world and apply speed * delta
+        Vector3 worldMove = transform.TransformDirection(smoothedDirection) * currentSpeed * Time.unscaledDeltaTime;
+
+        // Integrate into targetPosition - collision will be checked afterwards
+        targetPosition += worldMove;
+    }
+    #endregion
+
+    #region Scroll / FOV Zoom
+    void HandleScrollZoomOrFOV()
+    {
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+        if (Mathf.Approximately(scroll, 0f)) return;
+
+        if (useScrollToTranslate)
+        {
+            float scalarTarget = scroll * scrollZoomSpeed;
+            float smoothedScalar = Mathf.SmoothDamp(0f, scalarTarget, ref scrollSmoothRef, scrollZoomSmoothTime);
+            Vector3 smoothedDelta = transform.forward * smoothedScalar;
+            targetPosition += smoothedDelta;
+
+            // clamp relative to startPosition
+            Vector3 offset = targetPosition - startPosition;
+            if (offset.magnitude > maxZoomDistance)
+            {
+                offset = Vector3.ClampMagnitude(offset, maxZoomDistance);
+                targetPosition = startPosition + offset;
+            }
+        }
+        else
+        {
+            float desiredFOV = cam.fieldOfView - scroll * fovZoomSpeed;
+            desiredFOV = Mathf.Clamp(desiredFOV, minFOV, maxFOV);
+            cam.fieldOfView = Mathf.SmoothDamp(cam.fieldOfView, desiredFOV, ref fovSmoothRef, fovSmoothTime);
+        }
+    }
+    #endregion
+
+    #region Collision Prevention
+    void PreventCameraClipping()
+    {
+        // We will attempt to move from current position toward targetPosition.
+        Vector3 currentPos = transform.position;
+        Vector3 desiredMove = targetPosition - currentPos;
+        float desiredDistance = desiredMove.magnitude;
+
+        if (desiredDistance <= 0.0001f) return;
+
+        Vector3 direction = desiredMove / desiredDistance;
+
+        // SphereCast from currentPos outward toward desired target to see if we hit something in the way
+        if (Physics.SphereCast(currentPos, collisionRadius, direction, out RaycastHit hit, desiredDistance + collisionBuffer, collisionMask))
+        {
+            // We hit something between current and target. Compute safe position slightly before the hit point.
+            float safeDistance = Mathf.Max(0f, hit.distance - collisionBuffer);
+            Vector3 safePos = currentPos + direction * safeDistance;
+
+            // Also keep camera a tiny offset from surface along normal to avoid being exactly flush
+            safePos = hit.point + hit.normal * (collisionRadius + collisionBuffer);
+
+            // Smoothly bring targetPosition to safePos to avoid popping
+            targetPosition = Vector3.SmoothDamp(targetPosition, safePos, ref collisionSmoothRef, collisionSmoothTime);
+        }
+        else
+        {
+            // No obstacle between current and desired => ok. (No adjustment)
+            // However, we also ensure camera doesn't end up *inside* geometry if starting inside (rare).
+            if (Physics.CheckSphere(targetPosition, collisionRadius, collisionMask))
+            {
+                // If target is inside geometry, push it outward using the nearest surface normal
+                if (Physics.OverlapSphere(targetPosition, collisionRadius, collisionMask).Length > 0)
+                {
+                    // Do an inverse spherecast toward -forward from slightly above to find surface
+                    // fallback: ray down small distances to attempt to find surface normal
+                    RaycastHit hit2;
+                    if (Physics.SphereCast(targetPosition + Vector3.up * 0.1f, collisionRadius, Vector3.down, out hit2, 0.5f, collisionMask))
+                    {
+                        Vector3 push = hit2.point + hit2.normal * (collisionRadius + collisionBuffer);
+                        targetPosition = Vector3.SmoothDamp(targetPosition, push, ref collisionSmoothRef, collisionSmoothTime);
+                    }
+                }
+            }
+        }
+    }
+    #endregion
+
+    #region Apply & Utility
+    void ApplyPositionSmoothing()
+    {
+        // Smoothly move camera to the target position
+        // Use SmoothDamp per-axis for stable feel
+        transform.position = Vector3.SmoothDamp(transform.position, targetPosition, ref positionSmoothVelocity, 0.06f);
+    }
+
+    void ApplyHeightClamp()
+    {
+        if (!clampHeight) return;
+        Vector3 p = transform.position;
+        p.y = Mathf.Clamp(p.y, minHeight, maxHeight);
+
+        // keep targetPosition consistent
+        targetPosition = new Vector3(targetPosition.x, p.y, targetPosition.z);
+        transform.position = p;
+    }
+
+    /// <summary>
+    /// Reset the zoom anchor to current transform position (useful after teleporting the camera).
+    /// </summary>
+    public void ResetZoomAnchorToCurrentPosition()
+    {
+        startPosition = transform.position;
+    }
+    #endregion
+
+    void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, collisionRadius);
+
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireSphere(startPosition, 0.05f);
+    }
+}
+i want to learn this concept related to camera
