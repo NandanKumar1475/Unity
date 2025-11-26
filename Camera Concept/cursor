@@ -1,0 +1,148 @@
+
+# 🎯 **Unity Cursor Cheat Sheet**
+
+## ✔ Show cursor
+
+```csharp
+Cursor.visible = true;
+```
+
+## ✔ Hide cursor
+
+```csharp
+Cursor.visible = false;
+```
+
+---
+
+# 🎯 **Cursor Lock States**
+
+## ✔ Free cursor (normal)
+
+* Cursor moves normally
+* Visible
+* Can click UI / objects
+* No rotation lock
+
+```csharp
+Cursor.lockState = CursorLockMode.None;
+```
+
+---
+
+## ✔ Locked cursor (FPS mode)
+
+* Locked in center
+* Invisible
+* Unlimited rotation
+
+```csharp
+Cursor.lockState = CursorLockMode.Locked;
+Cursor.visible = false;
+```
+
+---
+
+## ✔ Confined cursor (kept inside game window)
+
+* Visible
+* Can move but cannot leave window
+* Useful for RTS or editor mode
+
+```csharp
+Cursor.lockState = CursorLockMode.Confined;
+Cursor.visible = true;
+```
+
+---
+
+# 🎯 **Common Camera Modes**
+
+## 🟦 Free-Look With Visible Cursor (your mode)
+
+Rotate with RMB, but cursor stays visible & free.
+
+```csharp
+if (Input.GetMouseButton(1))
+{
+    Cursor.lockState = CursorLockMode.None;
+    Cursor.visible = true;
+}
+```
+
+---
+
+## 🟥 FPS Mode (classic)
+
+Hide cursor + lock to center when playing.
+
+```csharp
+Cursor.lockState = CursorLockMode.Locked;
+Cursor.visible = false;
+```
+
+---
+
+## 🟨 Toggle Lock on Press (press Esc to show cursor)
+
+```csharp
+if (Input.GetKeyDown(KeyCode.Escape))
+{
+    Cursor.lockState = CursorLockMode.None;
+    Cursor.visible = true;
+}
+
+if (Input.GetMouseButtonDown(0))
+{
+    Cursor.lockState = CursorLockMode.Locked;
+    Cursor.visible = false;
+}
+```
+
+---
+
+# 🎯 **Useful Patterns**
+
+## ✔ Temporarily disable UI clicks while rotating
+
+```csharp
+bool IsRotating => Input.GetMouseButton(1);
+```
+
+---
+
+## ✔ Only hide cursor while rotating
+
+```csharp
+if (Input.GetMouseButtonDown(1))
+{
+    Cursor.visible = false;
+}
+if (Input.GetMouseButtonUp(1))
+{
+    Cursor.visible = true;
+}
+```
+
+---
+
+## ✔ Center cursor manually (rare)
+
+```csharp
+Cursor.lockState = CursorLockMode.Locked;
+Cursor.lockState = CursorLockMode.None; // releases but cursor remains centered
+```
+
+---
+
+# ⭐ Summary Table
+
+| Mode              | LockState | Visible | Description                |
+| ----------------- | --------- | ------- | -------------------------- |
+| Free              | None      | ✔       | Normal cursor              |
+| FPS               | Locked    | ❌       | Hide + lock to center      |
+| Confined          | Confined  | ✔       | Cursor stays inside window |
+| Free-look Visible | None      | ✔       | Rotate while cursor free   |
+
+---
+
