@@ -1,0 +1,187 @@
+| Action       | Code                          |
+| ------------ | ----------------------------- |
+| Left click   | `Input.GetMouseButtonDown(0)` |
+| Right click  | `Input.GetMouseButtonDown(1)` |
+| Middle click | `Input.GetMouseButtonDown(2)` |
+| Hold RMB     | `Input.GetMouseButton(1)`     |
+| Release RMB  | `Input.GetMouseButtonUp(1)`   |
+Great — here is a **clean, professional Camera Input Cheat Sheet** for Unity.
+
+---
+
+# 🎥 **UNITY CAMERA INPUT CHEAT SHEET (PRO)**
+
+---
+
+# 🖱 MOUSE LOOK (Rotation)
+
+### Always rotate
+
+```csharp
+float mouseX = Input.GetAxis("Mouse X");
+float mouseY = Input.GetAxis("Mouse Y");
+```
+
+### Rotate only while RMB held
+
+```csharp
+if (Input.GetMouseButton(1))
+{
+    float mouseX = Input.GetAxisRaw("Mouse X");
+    float mouseY = Input.GetAxisRaw("Mouse Y");
+}
+```
+
+---
+
+# 🖱 MOUSE BUTTONS
+
+| Action       | Code                          |
+| ------------ | ----------------------------- |
+| Left click   | `Input.GetMouseButtonDown(0)` |
+| Right click  | `Input.GetMouseButtonDown(1)` |
+| Middle click | `Input.GetMouseButtonDown(2)` |
+| Hold RMB     | `Input.GetMouseButton(1)`     |
+| Release RMB  | `Input.GetMouseButtonUp(1)`   |
+
+---
+
+# 🔍 MOUSE SCROLL (Zoom)
+
+```csharp
+float scroll = Input.GetAxis("Mouse ScrollWheel");
+```
+
+* `scroll > 0` → zoom in
+* `scroll < 0` → zoom out
+* `scroll == 0` → no scroll
+
+---
+
+# ⭐ CURSOR CONTROL (VERY IMPORTANT)
+
+## Show cursor
+
+```csharp
+Cursor.visible = true;
+```
+
+## Hide cursor
+
+```csharp
+Cursor.visible = false;
+```
+
+## Free cursor (default)
+
+```csharp
+Cursor.lockState = CursorLockMode.None;
+```
+
+## Locked cursor (FPS mode)
+
+```csharp
+Cursor.lockState = CursorLockMode.Locked;
+Cursor.visible = false;
+```
+
+## Confined cursor (RTS/editor)
+
+```csharp
+Cursor.lockState = CursorLockMode.Confined;
+Cursor.visible = true;
+```
+
+---
+
+# ⌨ KEYBOARD INPUT
+
+## Movement axes
+
+```csharp
+float horizontal = Input.GetAxisRaw("Horizontal"); // A D
+float vertical = Input.GetAxisRaw("Vertical");     // W S
+```
+
+## Sprint
+
+```csharp
+bool isSprinting = Input.GetKey(KeyCode.LeftShift);
+```
+
+## Up/Down movement (free camera)
+
+```csharp
+if (Input.GetKey(KeyCode.E)) up = 1f;
+if (Input.GetKey(KeyCode.Q)) up = -1f;
+```
+
+---
+
+# 🎯 CAMERA MODES (READY TO USE)
+
+## 1️⃣ FPS Mode (locked + hidden)
+
+```csharp
+Cursor.lockState = CursorLockMode.Locked;
+Cursor.visible = false;
+```
+
+## 2️⃣ Editor Free-Look Mode (your mode)
+
+Rotate with RMB, cursor visible + free:
+
+```csharp
+if (Input.GetMouseButton(1))
+{
+    Cursor.lockState = CursorLockMode.None;
+    Cursor.visible = true;
+}
+```
+
+## 3️⃣ Toggle cursor with ESC (common in games)
+
+```csharp
+if (Input.GetKeyDown(KeyCode.Escape))
+{
+    Cursor.lockState = CursorLockMode.None;
+    Cursor.visible = true;
+}
+```
+
+## 4️⃣ Click to lock again
+
+```csharp
+if (Input.GetMouseButtonDown(0))
+{
+    Cursor.lockState = CursorLockMode.Locked;
+    Cursor.visible = false;
+}
+```
+
+---
+
+# 🎥 CAMERA FEATURES YOU CAN ADD EASILY
+
+These concepts pair well with the input above:
+
+### ✔ Tilt while turning
+
+### ✔ Smooth FOV zoom
+
+### ✔ Sprint FOV
+
+### ✔ Momentum / acceleration
+
+### ✔ Camera shake
+
+### ✔ Dolly zoom (physical zoom)
+
+### ✔ Free camera fly mode
+
+### ✔ Orbit camera
+
+### ✔ Drag-to-rotate camera
+
+### ✔ Click-to-focus object
+
