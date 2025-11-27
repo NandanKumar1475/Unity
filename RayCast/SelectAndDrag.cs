@@ -52,6 +52,14 @@ public class SelectAndDrag : MonoBehaviour
         {
             selected = hitInfo.collider.gameObject;
 
+
+// offset = selected.position - hit.point;
+// ✔ Stores the click position relative to the object.
+// ✔ Prevents snapping when dragging.
+// ✔ Makes the object follow the mouse smoothly but correctly.
+// ✔ Maintains the exact place where you clicked during drag.
+
+
             offset = selected.transform.position - hitInfo.point;
 
             MeshRenderer mr = selected.GetComponent<MeshRenderer>();
