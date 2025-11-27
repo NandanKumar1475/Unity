@@ -1,0 +1,23 @@
+Yaw
+ rotation left/right
+ around the Y axis
+ changes where the camera is facing horizontally
+Pitch
+ rotation up/down
+ around the X axis
+ changes vertical view
+ must be clamped (to avoid flipping)
+
+----------------------------------------------------------------------------------------------
+float mx = Input.GetAxisRaw("Mouse X") * sensitivity;
+float my = Input.GetAxisRaw("Mouse Y") * sensitivity;
+yaw += mx;
+pitch -= my;   // minus = correct “FPS” style look
+transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+-----------------------------------------------------------------------------------------------
+        Pitch ↑ 
+            |
+Yaw ←   Camera   → Yaw →
+            |
+        Pitch ↓
+
