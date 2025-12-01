@@ -1,0 +1,37 @@
+1. - > first steps is to create Parent Empty GameObject 
+
+public GameObject createContainer(string name)
+{
+   GameObject go = new GameObject(name);
+    return go ;
+}
+
+2. how to parent 
+-->Putting one object under another object so it moves as a group.
+Parenting :
+synatx : -
+child.transform.SetParent(Parent.transform) ;
+
+------------------------------------------------------------------------
+3. Understanding of local postion and World postion ---------- 
+AtomContainer (World Position)
+    └── Nucleus (local 0,0,0)
+         └── Ring (local 0,0,0)
+             └── Electrons (local positions around the ring)
+
+-- > child.transform.localPosition = new Vector3(0, 2, 0);
+      -- it means chikd is 2 unit above the parents  ;
+Note : 
+ -> When localPosition = Vector3.zero, the child sits at the parent's center, not the world's center.
+---------------------------------------------------------------------------
+4. Naming Spawaned Objects  
+Gameobject go =  new GameObject(String name) ;
+go.name = "Nucleus" --> here renaming the Gameibject 
+
+Example : -
+GameObject robot = new GameObject("Robot");
+GameObject head = new GameObject("Head");
+head.transform.SetParent(robot.transform);
+
+
+
