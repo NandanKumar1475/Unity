@@ -1,0 +1,38 @@
+1--
+What a “Pool”
+A storage box that keeps already-created GameObjects so you can reuse them instead of creating new ones.
+////////////////////////////
+WHY pooling exists
+Instantiate() is expensive.
+If you use it many times per second → lag.
+So instead of creating new objects every time, pooling does this:
+  ----------------------------------->
+Create object once → store it → reuse it → store again → reuse again
+
+POOL BOX
+┌────────────┐
+│  Electron1 │  ← saved, deactivated
+│  Electron2 │
+│  Ring1     │
+└────────────┘
+Note:-
+A pool reduces lag and reduces memory garbage creation by reusing objects instead of Instantiating/Destorying repeatedly.
+
+What happens when we use pool.ContainsKey(key)?
+-->
+if (!pool.ContainsKey(key))
+{
+    pool[key] = new Queue<GameObject>();
+}
+✔ Step 1 — What does ContainsKey mean?
+ContainsKey(key) simply asks: "Does this Dictionary already have this key?"
+It returns:
+true → key exists
+false → key does NOT exist
+✔ Step 2 — What is Dequeue()?
+ -->Dequeue() removes the front object from the queue and returns it
+ Step 3 — What is Enqueue()?
+ Enqueue() adds an object to the back of the queue.
+ Take → Use → Return → Take → Use → Return
+
+ 
