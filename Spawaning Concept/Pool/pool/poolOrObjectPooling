@@ -35,4 +35,20 @@ false → key does NOT exist
  Enqueue() adds an object to the back of the queue.
  Take → Use → Return → Take → Use → Return
 
- 
+ Why we use key as string :-
+Because -> ⭐ Summary (simple)
+
+We use string as the key because:
+It is readable
+It matches prefab names
+It avoids confusion
+It is easy to maintain
+It supports unlimited pool categories
+
+Q.1-> Why use ONE ObjectPooler for bullets/enemies/smoke
+Core answer (one sentence):
+One central ObjectPooler gives a single place to create, reuse, and manage pooled objects so your game uses less memory, has fewer bugs, and is easier to control and tune.
+Note:-
+We use a single ObjectPooler because it gives one central place to create, reuse, and manage all pooled objects for bullets, enemies, and effects
+
+
