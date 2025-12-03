@@ -52,3 +52,66 @@ Note:-
 We use a single ObjectPooler because it gives one central place to create, reuse, and manage all pooled objects for bullets, enemies, and effects
 
 
+// pooling Concept 
+using System.Collections.Generic;
+using UnityEngine;
+
+public class Objectpooler : MonoBehaviour 
+{
+	private readonly Dictionary<string , Queue<GameObject>> pool = new Dictionary<string , Queue<GameObject>();
+	
+	public void Createpool(String key , GameObject prefabs , int initalSize)
+	{
+		if(string.IsNullOrEmpty(key) || prefabs == null || initalSize < 0) return ;
+		if(pool.ContainsKey(key)) return ;
+		
+		//creating a Queue for Object storage 
+		var q = new Queue<GameObject>();
+		for(int i = 0 ; i < initalSize ; i++)
+		{
+			GameObject go = instantiate(prefabs);
+			go.name  = $"{key}_pooled{i}";
+			go.setActive(false);
+			q.Enque(go);
+		}
+		
+		pool[key] = q ;
+	}
+	
+	
+	public GameObject SpawanFromPool(string key , vector3 postion Quaterian rotation )
+	{
+		if(!pool.ContainsKey(key))
+		{
+			Debug.log(" The pooled is nit found");
+			return null;
+		}
+		Queue<GameObject> q = pool[key] ;
+		GameObject obj ;
+		if(q.count == 0 )
+		{
+			obj = new GameObject($"{key}_pooled")
+		}
+		else{
+			obj =  q.Dequeue();
+		}
+		obj.setActive(true);
+		obj.transform.postion = positin ;
+		obj.rotation = rotation ;
+		
+		return obj ;
+	}
+	
+	public void ReturnTopool(string key , GameObject obj)
+	{
+		if(string.IsNullOrEmpty(key) || obj == null ) return ;
+		if(!pool.ContainsKey(key)
+		{
+			pool[key] = new Queue<GameObject>();
+		}
+		obj.setActive(false);
+		pool[key].Enque(obj);
+	}
+	
+	
+}
