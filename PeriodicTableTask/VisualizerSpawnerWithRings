@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using TMPro;
+using UnityEngine.UI;
 
 public class VisualizerSpawnerWithRings : MonoBehaviour
 {
@@ -19,7 +20,7 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
     public GameObject ionicFXPrefab;
     public GameObject covalentBond;
 
-    [Header("Nucleus / Nucleon")]
+    [Header("Nucleus")]
     public float desiredNucleusScale = 2.0f;
     public float nucleonScale = 0.45f;
     public int maxNucleonsToSpawn = 200;
@@ -44,6 +45,12 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
     public float maxTiltDegrees = 30f;
     public int seedForDeterminism = 0;
 
+    [Header("Covalent motion tuning")]
+    [Tooltip("Delay (seconds) AFTER spawn before covalent atoms start moving.")]
+    public float covalentStartDelay = 2.6f;
+    [Tooltip("Duration (seconds) of the covalent atom approach.")]
+    public float covalentMoveDuration = 20f;
+
     [Header("Pooling")]
     public bool usePooling = true;
     private readonly Dictionary<string, Queue<GameObject>> pool = new Dictionary<string, Queue<GameObject>>();
@@ -53,22 +60,39 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
     public TMP_Text transfersSummaryText;
     public TMP_Text overallStabilityText;
 
+    [Header("Start Reaction UI (optional)")]
+    public Button startReactionButton; // hook this in inspector if you want a button
+
     private readonly List<GameObject> spawnedAtoms = new List<GameObject>();
 
     // Persistent status labels over each atom
     private readonly Dictionary<GameObject, TMP_Text> statusLabels = new Dictionary<GameObject, TMP_Text>();
 
-    // Track active looping ionic FX instances so we can stop them later
+
     private readonly List<GameObject> activeIonicFX = new List<GameObject>();
+
+
+    private readonly List<GameObject> activeCovalentFX = new List<GameObject>();
 
     // Label colors
     private static readonly Color COLOR_STABLE = new Color(0.2f, 1f, 0.4f);   // green
     private static readonly Color COLOR_UNSTABLE = new Color(1f, 0.65f, 0f);    // orange
     private static readonly Color COLOR_NOTPOSS = new Color(1f, 0.27f, 0.27f); // red
 
+    
+    private List<TransferResult> pendingTransfers = null;
+    private Dictionary<string, Queue<GameObject>> pendingSymbolToSpawned = null;
+    private Transform pendingWorldRoot = null;
+    private bool reactionStarted = false;
+
+    void Awake()
+    {
+        if (startReactionButton != null)
+            startReactionButton.onClick.AddListener(StartReaction);
+    }
+
     void Start()
     {
-        // Build selection list from either selectedElements or A/B pair
         var selected = SelectionDataTransfer.selectedElements;
         if ((selected == null || selected.Count == 0) &&
             SelectionDataTransfer.elementA != null &&
@@ -85,20 +109,18 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
 
         if (seedForDeterminism != 0) UnityEngine.Random.InitState(seedForDeterminism);
 
-        // Chemistry (multi-atom) engine
         var chem = GetComponent<ChemistryRuleEngine>();
         if (chem == null) chem = gameObject.AddComponent<ChemistryRuleEngine>();
         List<TransferResult> transfers = chem.ComputeTransfers(selected);
         SelectionDataTransfer.lastTransfers = transfers;
 
-        // Spawn origin
         Vector3 spawnCenter = Vector3.zero;
         Quaternion spawnRotation = Quaternion.identity;
         if (Camera.main != null)
         {
             var cam = Camera.main;
             spawnCenter = cam.transform.position + cam.transform.forward * spawnDistanceFromCamera;
-            spawnCenter.y = cam.transform.position.y - 0.5f;
+            spawnCenter.y = cam.transform.position.y + (desiredNucleusScale * 0.12f);
             spawnRotation = Quaternion.Euler(0f, cam.transform.eulerAngles.y, 0f);
         }
 
@@ -110,7 +132,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             AdjustCameraToFitBounds(Camera.main, b, cameraFramePadding);
         }
 
-        // LEFT PANEL SUMMARY (ASCII-safe)
         if (stabilityPanel != null)
         {
             stabilityPanel.SetActive(true);
@@ -144,7 +165,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             }
         }
 
-        // Clear selection cache so next scene starts fresh
         SelectionDataTransfer.Clear();
     }
 
@@ -165,7 +185,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         worldParent.transform.rotation = parentRotation;
         spawnedAtoms.Add(worldParent);
 
-        // symbol -> queue of atoms
         Dictionary<string, Queue<GameObject>> symbolToSpawned = new Dictionary<string, Queue<GameObject>>();
 
         for (int idx = 0; idx < count; idx++)
@@ -183,7 +202,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             atomGO.transform.localRotation = Quaternion.identity;
             spawnedAtoms.Add(atomGO);
 
-            // Nucleus
             GameObject nucleus;
             if (spherePrefab != null)
             {
@@ -229,7 +247,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             for (int n = 0; n < neutronCount; n++)
                 SpawnNucleonInside(nucleusParent, neutronPrefab, nucleusRadius, nucleonScale);
 
-            // Electron controller + rings
             var controller = nucleus.GetComponent<MultiRingElectronController>();
             if (controller == null) controller = nucleus.AddComponent<MultiRingElectronController>();
             controller.orbitInXZPlane = orbitInXZPlane;
@@ -298,7 +315,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
                 controller.RefreshAllRings();
             }
 
-            // Floating symbol label (element)
             if (labelH2Prefab != null)
             {
                 GameObject labelGO = CreateFromPool("LabelPrefab", labelH2Prefab, atomGO.transform);
@@ -316,8 +332,11 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             q.Enqueue(atomGO);
         }
 
-        // Apply chemistry visuals after spawn
-        StartCoroutine(ApplyChemistryVisuals(transfers, symbolToSpawned, worldParent.transform));
+        // DEFER starting the chemistry visuals until user clicks start
+        pendingTransfers = transfers;
+        pendingSymbolToSpawned = symbolToSpawned;
+        pendingWorldRoot = worldParent.transform;
+        reactionStarted = false;
         return worldParent;
     }
 
@@ -325,9 +344,15 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
                                       Dictionary<string, Queue<GameObject>> symbolToSpawned,
                                       Transform worldRoot)
     {
-        if (transfers == null || transfers.Count == 0) yield break;
+        if (transfers == null || transfers.Count == 0)
+        {
+            // re-enable button if available
+            if (startReactionButton != null) startReactionButton.interactable = true;
+            reactionStarted = false;
+            yield break;
+        }
 
-        // PASS 0: For any not-stable/indeterminate, show persistent labels immediately.
+        // PASS 0: not-stable/indeterminate => labels
         foreach (var t in transfers)
         {
             if (t == null) continue;
@@ -344,7 +369,7 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             }
         }
 
-        // PASS 1: Ionic (only if stable) – after transfer, set "STABLE"
+        // PASS 1: Ionic
         foreach (var t in transfers)
         {
             if (t == null) continue;
@@ -354,31 +379,46 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             GameObject donorGO = DequeueMatching(symbolToSpawned, t.donor);
             GameObject acceptorGO = DequeueMatching(symbolToSpawned, t.acceptor);
 
+            if (donorGO == null || acceptorGO == null) continue;
+
+            yield return new WaitForSeconds(0.5f);
+
             if (donorGO != null) AddChargeLabel(donorGO, "+");
             if (acceptorGO != null) AddChargeLabel(acceptorGO, "-");
 
-            if (donorGO != null && acceptorGO != null)
-            {
-                int transferCount = Mathf.Abs(t.electronsTransferred);
-                const float transferDuration = 3.0f;
+            int transferCount = Mathf.Abs(t.electronsTransferred);
+            const float transferDuration = 4.2f; // slightly snappier
 
-                for (int k = 0; k < transferCount; k++)
+            for (int k = 0; k < transferCount; k++)
+            {
+                var dE = FindDonorElectron(donorGO, t.donor != null ? t.donor.symbol : null);
+                if (dE == null) break;
+
+                var marker = dE.GetComponent<ElectronMarker>();
+                if (marker != null)
                 {
-                    var dE = FindDonorElectron(donorGO, t.donor != null ? t.donor.symbol : null);
-                    if (dE == null) break;
-                    yield return StartCoroutine(AnimateElectronTransferCoroutine(dE, donorGO, acceptorGO, transferDuration));
-                    yield return new WaitForSeconds(0.08f);
+                    marker.inTransfer = true;
+                    marker.transferred = false;
                 }
 
-                // spawn a looping ionic FX at midpoint (keeps playing until stopped)
-                SpawnLoopingIonicFXBetween(donorGO, acceptorGO);
+                yield return StartCoroutine(AnimateElectronTransferCoroutine(dE, donorGO, acceptorGO, transferDuration));
 
-                SetStatusLabel(donorGO, "STABLE", COLOR_STABLE);
-                SetStatusLabel(acceptorGO, "STABLE", COLOR_STABLE);
+                yield return new WaitForSeconds(0.12f);
+
+                UpdateElectronOwnership(donorGO, acceptorGO);
             }
+
+            SpawnLoopingIonicFXBetween(donorGO, acceptorGO);
+
+            SetStatusLabel(donorGO, "STABLE", COLOR_STABLE);
+            SetStatusLabel(acceptorGO, "STABLE", COLOR_STABLE);
+
+            // slight atom approach to signify attraction
+            float approachDuration = 1.3f;
+            yield return StartCoroutine(AnimateAtomsApproach(worldRoot, donorGO, acceptorGO, 0.55f, approachDuration));
         }
 
-        // PASS 2: Covalent (only if stable) – after line animation, set "STABLE" and play covalent FX
+        // PASS 2: Covalent – use SAME atom-approach animation as ionic
         foreach (var t in transfers)
         {
             if (t == null) continue;
@@ -401,84 +441,32 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             int bonds = 1;
             try { bonds = Mathf.Clamp(t.chosenBonds <= 0 ? 1 : t.chosenBonds, 1, 3); } catch { bonds = 1; }
 
-            // Animate the covalent bond being drawn
-            yield return StartCoroutine(AnimateCovalentBond(worldRoot, aGO, bGO, bonds, 1.4f));
+            if (covalentStartDelay > 0f)
+                yield return new WaitForSeconds(covalentStartDelay);
 
-            // --- NEW: spawn/play covalent FX(s) at bond midpoint(s) using pooling and tint for polar bonds ---
-            if (covalentBond != null)
-            {
-                // compute primary direction/perp so we can offset FXs for double/triple bonds
-                Vector3 pa = aGO.transform.position + Vector3.up * 0.2f;
-                Vector3 pb = bGO.transform.position + Vector3.up * 0.2f;
-                Vector3 dir = (pb - pa).normalized;
-                Vector3 perp = Vector3.Cross(dir, Vector3.up).normalized;
-                if (perp == Vector3.zero) perp = Vector3.right;
+            float dur = Mathf.Max(0.35f, covalentMoveDuration);
+            yield return StartCoroutine(
+                AnimateAtomsApproach(worldRoot, aGO, bGO, 0.55f, dur)
+            );
 
-                float fxSpacing = 0.15f; // spacing between FX instances for multi-bonds
-                for (int i = 0; i < bonds; i++)
-                {
-                    float offset = (i - (bonds - 1) * 0.5f) * fxSpacing;
-                    Vector3 mid = (aGO.transform.position + bGO.transform.position) * 0.5f + Vector3.up * 0.45f + perp * offset;
+            SpawnLoopingCovalentFXBetween(aGO, bGO, t.bondType, bonds);
 
-                    GameObject fxRoot = EnsureFXRoot();
-                    GameObject fxInst = CreateFromPool("CovalentFX", covalentBond, fxRoot.transform);
-                    fxInst.transform.position = mid;
-
-                    // align the fx 'up' to the bond direction if desired (optional)
-                    try
-                    {
-                        fxInst.transform.up = dir;
-                    }
-                    catch { /* ignore potential NaNs */ }
-
-                    // prepare and play (non-looping by default)
-                    PrepareFXInstance(fxInst, enforceLoop: false);
-
-                    // tint depending on polar / non-polar
-                    var pss = fxInst.GetComponentsInChildren<ParticleSystem>(true);
-                    if (t.bondType == BondType.PolarCovalent)
-                    {
-                        Color polarColor = new Color(1f, 0.75f, 0.35f); // warm/orange tint
-                        foreach (var ps in pss)
-                        {
-                            try
-                            {
-                                var main = ps.main;
-                                main.startColor = new ParticleSystem.MinMaxGradient(polarColor);
-                            }
-                            catch { }
-                        }
-                    }
-                    else
-                    {
-                        Color nonPolarColor = new Color(0.9f, 0.95f, 1f); // soft bluish/white
-                        foreach (var ps in pss)
-                        {
-                            try
-                            {
-                                var main = ps.main;
-                                main.startColor = new ParticleSystem.MinMaxGradient(nonPolarColor);
-                            }
-                            catch { }
-                        }
-                    }
-
-                    // short lifetime then return to pool
-                    float fxLifetime = 2.5f;
-                    StartCoroutine(ReleaseFXAfter(fxLifetime, "CovalentFX", fxInst));
-                }
-            }
-
-            // finally mark stable on labels
             SetStatusLabel(aGO, "STABLE", COLOR_STABLE);
             SetStatusLabel(bGO, "STABLE", COLOR_STABLE);
         }
+
+        // camera pulse to celebrate reaction completion (zoom out -> zoom in -> settle)
+        if (pendingWorldRoot != null)
+            StartCoroutine(CameraZoomPulse(pendingWorldRoot, 0.45f, 0.9f, 1.0f)); // small, tasteful pulse
+
+        // re-enable button so user can run again if desired
+        if (startReactionButton != null) startReactionButton.interactable = true;
+        reactionStarted = false;
     }
 
     // --------------------------
-    // EXPLANATION TEXT (ASCII)
+    // EXPLANATION TEXT / SUMMARY
     // --------------------------
-
     private static string PrettyBondType(BondType bt)
     {
         switch (bt)
@@ -494,7 +482,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
 
     private static string NameOrQ(ElementData e) => e != null ? e.symbol : "?";
 
-    // asciiOnly=true avoids fancy symbols; we use ASCII for beginners
     private static string FormatTransferResult(TransferResult t, bool asciiOnly = true)
     {
         string arrow = asciiOnly ? "->" : "→";
@@ -538,7 +525,7 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
     }
 
     // --------------------------
-    // LABELS (persistent)
+    // LABELS
     // --------------------------
 
     TMP_Text GetOrCreateStatusLabel(GameObject atom)
@@ -571,7 +558,7 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         var tmp = GetOrCreateStatusLabel(atom);
         if (tmp == null) return;
         tmp.text = text;
-        tmp.color = color;
+        tmp.color = Color.grey;
         tmp.fontStyle = FontStyles.Bold;
     }
 
@@ -606,77 +593,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
 
         if (t.bondType == BondType.None) return "NO BOND FORMED";
         return "NOT POSSIBLE";
-    }
-
-    // --------------------------
-    // BOND DRAWING
-    // --------------------------
-
-    private IEnumerator AnimateCovalentBond(Transform worldRoot, GameObject aGO, GameObject bGO, int bondCount, float duration = 1.4f)
-    {
-        if (bondCount <= 0) yield break;
-
-        Vector3 pa = aGO.transform.position + Vector3.up * 0.2f;
-        Vector3 pb = bGO.transform.position + Vector3.up * 0.2f;
-        Vector3 dir = (pb - pa).normalized;
-        Vector3 perp = Vector3.Cross(dir, Vector3.up).normalized;
-        if (perp == Vector3.zero) perp = Vector3.right;
-
-        float gap = 0.08f;
-        var lines = new List<LineRenderer>(bondCount);
-
-        for (int i = 0; i < bondCount; i++)
-        {
-            GameObject bondGO = CreateContainer("CovalentBond_" + (i + 1));
-            bondGO.transform.SetParent(worldRoot, false);
-
-            var lr = bondGO.AddComponent<LineRenderer>();
-            lr.positionCount = 2;
-            lr.useWorldSpace = true;
-            lr.widthMultiplier = 0.05f;
-            lr.material = new Material(Shader.Find("Sprites/Default"));
-            lr.startColor = new Color(1f, 1f, 0.7f, 0.9f);
-            lr.endColor = lr.startColor;
-            lines.Add(lr);
-        }
-
-        float elapsed = 0f;
-        while (elapsed < duration)
-        {
-            elapsed += Time.deltaTime;
-            float t = Mathf.Clamp01(elapsed / duration);
-            float ease = Mathf.SmoothStep(0f, 1f, t);
-
-            pa = aGO.transform.position + Vector3.up * 0.2f;
-            pb = bGO.transform.position + Vector3.up * 0.2f;
-
-            for (int i = 0; i < bondCount; i++)
-            {
-                float offset = (i - (bondCount - 1) * 0.5f) * gap;
-                Vector3 off = perp * offset;
-                Vector3 a = pa + off;
-                Vector3 b = pb + off;
-                Vector3 head = Vector3.Lerp(a, b, ease);
-
-                var lr = lines[i];
-                lr.SetPosition(0, a);
-                lr.SetPosition(1, head);
-            }
-            yield return null;
-        }
-
-        // Final snap
-        for (int i = 0; i < bondCount; i++)
-        {
-            float offset = (i - (bondCount - 1) * 0.5f) * gap;
-            Vector3 off = perp * offset;
-            Vector3 a = aGO.transform.position + Vector3.up * 0.2f + off;
-            Vector3 b = bGO.transform.position + Vector3.up * 0.2f + off;
-
-            var lr = lines[i];
-            lr.SetPosition(0, a);
-            lr.SetPosition(1, b);
-        }
     }
 
     // --------------------------
@@ -771,9 +687,9 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             rb.isKinematic = true;
         }
 
-        Color transferColor = new Color(1f, 0.15f, 0.15f, 1f);
-        float emissionBase = 4.5f;
-        float emissionPulse = 3.0f;
+        Color transferColor = new Color(1f, 0.45f, 0.35f, 1f); // warmer tint
+        float emissionBase = 2.5f;
+        float emissionPulse = 2.6f;
 
         var renderers = electronGO.GetComponentsInChildren<Renderer>(true);
         var trailsAll = electronGO.GetComponentsInChildren<TrailRenderer>(true);
@@ -821,32 +737,45 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
             TintTrails(c);
         }
 
+        // BLINK & SCALE behavior: scale up to 2x while transferring, blink emissive
         float elapsed = 0f;
         Vector3 originalScale = electronGO.transform.localScale;
+        float peakScale = 2.0f;    // 2x size
+        float blinkFreq = 10f;     // blink speed
+        float beatFreq = 1.8f;     // slower modulation
+
         while (elapsed < duration)
         {
             elapsed += Time.deltaTime;
             float norm = Mathf.Clamp01(elapsed / duration);
             float t = Mathf.SmoothStep(0f, 1f, norm);
 
-            Vector3 pos = Mathf.Pow(1 - t, 2) * start + 2 * (1 - t) * t * mid + Mathf.Pow(t, 2) * end;
+            // safe, explicit Bézier position calculation (no Vector3*Vector3)
+            Vector3 pos = start * (Mathf.Pow(1f - t, 2f))
+                        + mid * (2f * (1f - t) * t)
+                        + end * (Mathf.Pow(t, 2f));
             electronGO.transform.position = pos;
 
-            float sizePulse = 1f + 0.18f * Mathf.Sin(t * Mathf.PI * 2f);
+            // scale: ease to peak then slightly settle
+            float sizeEase = Mathf.SmoothStep(0f, 1f, Mathf.Min(1f, norm * 1.25f));
+            float sizePulse = 1f + (peakScale - 1f) * (sizeEase * (1f - 0.18f * t));
             electronGO.transform.localScale = originalScale * sizePulse;
 
-            float pulse = 0.5f * (Mathf.Sin(2f * Mathf.PI * 5f * elapsed) + 1f);
-            ApplyColor(transferColor, emissionBase + emissionPulse * pulse);
+            // blinking/emission
+            float blink = 0.5f * (1f + Mathf.Sin(elapsed * Mathf.PI * 2f * blinkFreq));
+            float beat = 0.5f * (1f + Mathf.Sin(elapsed * Mathf.PI * 2f * beatFreq));
+            float emissIntensity = emissionBase + emissionPulse * Mathf.Lerp(0.12f, 1f, blink) * Mathf.Lerp(0.6f, 1f, beat);
+
+            ApplyColor(transferColor, emissIntensity);
 
             yield return null;
         }
 
+        // ensure final placement & scale reset
         electronGO.transform.position = end;
         electronGO.transform.localScale = originalScale;
 
-        // NOTE: fx spawn for looping is handled by SpawnLoopingIonicFXBetween in ApplyChemistryVisuals
-        // (we keep electron placement logic here unchanged)
-
+        // attach to acceptor ring if available
         if (targetRingPS != null)
         {
             var acceptorController = targetRingPS.GetComponentInParent<MultiRingElectronController>();
@@ -879,25 +808,91 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         if (rb != null) rb.isKinematic = false;
     }
 
+    private void UpdateElectronOwnership(GameObject donorGO, GameObject acceptorGO)
+    {
+        if (donorGO != null)
+        {
+            var donorController = donorGO.GetComponentInChildren<MultiRingElectronController>();
+            if (donorController != null) donorController.RefreshAllRings();
+            int dCount = CountElectronMarkers(donorGO, null);
+            SetStatusLabel(donorGO, $"e: {dCount}", COLOR_UNSTABLE);
+        }
+
+        if (acceptorGO != null)
+        {
+            var accController = acceptorGO.GetComponentInChildren<MultiRingElectronController>();
+            if (accController != null) accController.RefreshAllRings();
+            int aCount = CountElectronMarkers(acceptorGO, null);
+            SetStatusLabel(acceptorGO, $"e: {aCount}", COLOR_UNSTABLE);
+        }
+    }
+
+    private int CountElectronMarkers(GameObject atomGO, string elementSymbolFilter = null)
+    {
+        if (atomGO == null) return 0;
+        int c = 0;
+        var markers = atomGO.GetComponentsInChildren<ElectronMarker>(true);
+        foreach (var m in markers)
+        {
+            if (m == null) continue;
+            if (!string.IsNullOrEmpty(elementSymbolFilter) && m.elementSymbol != elementSymbolFilter) continue;
+            if (m.inTransfer) continue;
+            c++;
+        }
+        return c;
+    }
+
+    // --------------------------
+    // ATOMS APPROACH (used by BOTH ionic and covalent)
+    // --------------------------
+    private IEnumerator AnimateAtomsApproach(Transform worldRoot, GameObject aGO, GameObject bGO, float targetSeparationFactor = 0.5f, float duration = 0.9f)
+    {
+        if (aGO == null || bGO == null) yield break;
+        Vector3 startA = aGO.transform.position;
+        Vector3 startB = bGO.transform.position;
+        Vector3 mid = (startA + startB) * 0.5f;
+        Vector3 dir = (startB - startA).normalized;
+        if (dir == Vector3.zero) dir = Vector3.right;
+
+        float startDist = Vector3.Distance(startA, startB);
+        float targetDist = Mathf.Max(0.08f, startDist * Mathf.Clamp01(targetSeparationFactor));
+
+        Vector3 targetA = mid - dir * (targetDist * 0.5f);
+        Vector3 targetB = mid + dir * (targetDist * 0.5f);
+
+        float elapsed = 0f;
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / duration);
+            float ease = Mathf.SmoothStep(0f, 1f, t);
+            aGO.transform.position = Vector3.Lerp(startA, targetA, ease);
+            bGO.transform.position = Vector3.Lerp(startB, targetB, ease);
+            yield return null;
+        }
+
+        aGO.transform.position = targetA;
+        bGO.transform.position = targetB;
+    }
+
     // --------------------------
     // FX / POOLING HELPERS
     // --------------------------
 
-    // Ensure fx root exists and is active
     private GameObject EnsureFXRoot()
     {
         GameObject fxRoot = GameObject.Find("[FXRoot]");
         if (fxRoot == null)
         {
             fxRoot = new GameObject("[FXRoot]");
-            fxRoot.transform.position = new Vector3(0f, 0f, 30f);
+            fxRoot.transform.position = Vector3.zero;
             fxRoot.transform.rotation = Quaternion.identity;
+            fxRoot.transform.localScale = Vector3.one;
         }
         if (!fxRoot.activeSelf) fxRoot.SetActive(true);
         return fxRoot;
     }
 
-    // Prepare an FX instance: activate, clear, and play PS & trails
     private void PrepareFXInstance(GameObject fxInst, bool enforceLoop = false)
     {
         if (fxInst == null) return;
@@ -921,7 +916,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         foreach (var t in trails) t.Clear();
     }
 
-    // Teardown before returning to pool
     private void TeardownFXInstance(GameObject fxInst)
     {
         if (fxInst == null) return;
@@ -940,11 +934,9 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         var trails = fxInst.GetComponentsInChildren<TrailRenderer>(true);
         foreach (var t in trails) t.Clear();
 
-        // detach to FXRoot to avoid inheriting odd transforms
         fxInst.transform.SetParent(EnsureFXRoot().transform, false);
     }
 
-    // CreateFromPool (defensive; prepares particle systems if any)
     GameObject CreateFromPool(string key, GameObject prefab = null, Transform parent = null)
     {
         if (!usePooling || prefab == null)
@@ -955,34 +947,55 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
                 if (parent != null) go.transform.SetParent(parent, false);
                 return go;
             }
-            var inst = Instantiate(prefab, parent);
+            var inst = UnityEngine.Object.Instantiate(prefab, parent);
             inst.name = prefab.name;
             return inst;
         }
 
         if (!pool.ContainsKey(key)) pool[key] = new Queue<GameObject>();
-
         var q = pool[key];
+
         if (q.Count > 0)
         {
             var go = q.Dequeue();
-            if (go == null) return CreateFromPool(key, prefab, parent); // defensive
+            if (go == null) return CreateFromPool(key, prefab, parent);
+
+            Vector3 worldPos = go.transform.position;
+            Quaternion worldRot = go.transform.rotation;
+            Vector3 worldScale = go.transform.lossyScale;
 
             if (parent != null)
-                go.transform.SetParent(parent, false);
+                go.transform.SetParent(parent, true);
             else
-                go.transform.SetParent(EnsureFXRoot().transform, false);
+                go.transform.SetParent(EnsureFXRoot().transform, true);
 
             go.SetActive(true);
 
             if (go.GetComponentInChildren<ParticleSystem>(true) != null)
                 PrepareFXInstance(go);
 
+            if (go.transform.parent != null)
+            {
+                var parentLossy = go.transform.parent.lossyScale;
+                Vector3 localScale = new Vector3(
+                    Mathf.Approximately(parentLossy.x, 0f) ? 1f : worldScale.x / parentLossy.x,
+                    Mathf.Approximately(parentLossy.y, 0f) ? 1f : worldScale.y / parentLossy.y,
+                    Mathf.Approximately(parentLossy.z, 0f) ? 1f : worldScale.z / parentLossy.z
+                );
+                go.transform.localScale = localScale;
+            }
+            else
+            {
+                go.transform.localScale = worldScale;
+            }
+
+            go.transform.position = worldPos;
+            go.transform.rotation = worldRot;
             return go;
         }
         else
         {
-            var inst = Instantiate(prefab, parent);
+            var inst = UnityEngine.Object.Instantiate(prefab, parent);
             inst.name = prefab.name;
             if (inst.GetComponent<PoolMarker>() == null) inst.AddComponent<PoolMarker>();
 
@@ -993,7 +1006,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         }
     }
 
-    // Return to pool (safe teardown)
     void ReturnToPool(string key, GameObject go)
     {
         if (go == null) return;
@@ -1014,41 +1026,38 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         }
         else
         {
-            Destroy(fx);
+            UnityEngine.Object.Destroy(fx);
         }
     }
 
-    // Spawn a looping ionic FX between two atoms and track it
+    // Ionic FX
     private void SpawnLoopingIonicFXBetween(GameObject donorGO, GameObject acceptorGO)
     {
         if (ionicFXPrefab == null || donorGO == null || acceptorGO == null) return;
 
         Vector3 mid = (donorGO.transform.position + acceptorGO.transform.position) * 0.5f + Vector3.up * 0.5f;
         GameObject fxRoot = EnsureFXRoot();
+
         GameObject fxInst = CreateFromPool("IonicFX", ionicFXPrefab, fxRoot.transform);
+
         fxInst.transform.position = mid;
         fxInst.transform.rotation = Quaternion.identity;
 
-        // enforce loop and play
         PrepareFXInstance(fxInst, enforceLoop: true);
 
-        // track it so we can stop later
         if (!activeIonicFX.Contains(fxInst)) activeIonicFX.Add(fxInst);
     }
 
-    // Stop a single ionic FX instance (fade/return to pool)
     public void StopIonicFX(GameObject fxInst, float fadeDelay = 0.5f)
     {
         if (fxInst == null) return;
         if (activeIonicFX.Contains(fxInst)) activeIonicFX.Remove(fxInst);
 
-        // stop particle systems (let any lingering particles fade for fadeDelay seconds)
         var pss = fxInst.GetComponentsInChildren<ParticleSystem>(true);
         foreach (var ps in pss)
         {
             try
             {
-                // stop emitting but allow existing particles to die naturally
                 ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
             }
             catch { }
@@ -1057,7 +1066,6 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         StartCoroutine(ReleaseFXAfter(Mathf.Max(0.05f, fadeDelay), "IonicFX", fxInst));
     }
 
-    // Stop all active ionic FX instances
     public void StopAllIonicFX(float fadeDelay = 0.5f)
     {
         var copy = new List<GameObject>(activeIonicFX);
@@ -1066,6 +1074,101 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         {
             if (fx == null) continue;
             StopIonicFX(fx, fadeDelay);
+        }
+    }
+
+    // --------------------------
+    // COVALENT FX – midpoint between atoms
+    // --------------------------
+    private void SpawnLoopingCovalentFXBetween(GameObject aGO, GameObject bGO, BondType bondType, int bonds = 1)
+    {
+        if (covalentBond == null || aGO == null || bGO == null) return;
+
+        Vector3 pa = aGO.transform.position + Vector3.up * 0.2f;
+        Vector3 pb = bGO.transform.position + Vector3.up * 0.2f;
+        Vector3 dir = (pb - pa).normalized;
+        if (dir == Vector3.zero) dir = Vector3.right;
+
+        Vector3 perp = Vector3.Cross(dir, Vector3.up).normalized;
+        if (perp == Vector3.zero) perp = Vector3.right;
+
+        float fxSpacing = 0.15f;
+        GameObject fxRoot = EnsureFXRoot();
+
+        for (int i = 0; i < bonds; i++)
+        {
+            float offset = (i - (bonds - 1) * 0.5f) * fxSpacing;
+            Vector3 mid = (aGO.transform.position + bGO.transform.position) * 0.5f
+                          + Vector3.up * 0.45f
+                          + perp * offset;
+
+            GameObject fxInst = CreateFromPool("CovalentFX", covalentBond, fxRoot.transform);
+
+            fxInst.transform.position = new Vector3(-8f, 0f, 316f);
+            try { fxInst.transform.forward = dir; } catch { }
+
+            PrepareFXInstance(fxInst, enforceLoop: true);
+
+            var pss = fxInst.GetComponentsInChildren<ParticleSystem>(true);
+            if (bondType == BondType.PolarCovalent)
+            {
+                Color polarColor = new Color(1f, 0.75f, 0.35f);
+                foreach (var ps in pss)
+                {
+                    if (ps == null) continue;
+                    try
+                    {
+                        var main = ps.main;
+                        main.startColor = new ParticleSystem.MinMaxGradient(polarColor);
+                    }
+                    catch { }
+                }
+            }
+            else
+            {
+                Color nonPolarColor = new Color(0.9f, 0.95f, 1f);
+                foreach (var ps in pss)
+                {
+                    if (ps == null) continue;
+                    try
+                    {
+                        var main = ps.main;
+                        main.startColor = new ParticleSystem.MinMaxGradient(nonPolarColor);
+                    }
+                    catch { }
+                }
+            }
+
+            if (!activeCovalentFX.Contains(fxInst)) activeCovalentFX.Add(fxInst);
+        }
+    }
+
+    public void StopCovalentFX(GameObject fxInst, float fadeDelay = 0.5f)
+    {
+        if (fxInst == null) return;
+        if (activeCovalentFX.Contains(fxInst)) activeCovalentFX.Remove(fxInst);
+
+        var pss = fxInst.GetComponentsInChildren<ParticleSystem>(true);
+        foreach (var ps in pss)
+        {
+            try
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
+            }
+            catch { }
+        }
+
+        StartCoroutine(ReleaseFXAfter(Mathf.Max(0.10f, fadeDelay), "CovalentFX", fxInst));
+    }
+
+    public void StopAllCovalentFX(float fadeDelay = 0.5f)
+    {
+        var copy = new List<GameObject>(activeCovalentFX);
+        activeCovalentFX.Clear();
+        foreach (var fx in copy)
+        {
+            if (fx == null) continue;
+            StopCovalentFX(fx, fadeDelay);
         }
     }
 
@@ -1146,11 +1249,56 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
 
     Bounds ComputeBoundsOfChildren(Transform root)
     {
-        var rends = root.GetComponentsInChildren<Renderer>();
-        if (rends == null || rends.Length == 0) return new Bounds(root.position, Vector3.one * 0.1f);
-        Bounds b = rends[0].bounds;
-        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
-        return b;
+        if (root == null) return new Bounds(Vector3.zero, Vector3.one * 0.1f);
+
+        var renderers = root.GetComponentsInChildren<Renderer>(true);
+        var psRenderers = root.GetComponentsInChildren<ParticleSystemRenderer>(true);
+
+        List<Renderer> all = new List<Renderer>();
+        if (renderers != null) all.AddRange(renderers);
+        if (psRenderers != null)
+        {
+            foreach (var psr in psRenderers) if (psr != null) all.Add(psr);
+        }
+
+        if (all.Count > 0)
+        {
+            Bounds b = all[0].bounds;
+            for (int i = 1; i < all.Count; i++)
+            {
+                if (all[i] == null) continue;
+                try { b.Encapsulate(all[i].bounds); } catch { }
+            }
+
+            Vector3 minSize = Vector3.one * Mathf.Max(0.2f, desiredNucleusScale * 0.8f);
+            if (b.size.x < minSize.x || b.size.y < minSize.y || b.size.z < minSize.z)
+            {
+                Vector3 center = b.center;
+                b = new Bounds(center, Vector3.Max(b.size, minSize));
+            }
+
+            return b;
+        }
+
+        var children = root.GetComponentsInChildren<Transform>(true);
+        if (children != null && children.Length > 0)
+        {
+            Vector3 min = children[0].position;
+            Vector3 max = children[0].position;
+            foreach (var t in children)
+            {
+                if (t == null) continue;
+                min = Vector3.Min(min, t.position);
+                max = Vector3.Max(max, t.position);
+            }
+            Vector3 size = max - min;
+            Vector3 minSize = Vector3.one * Mathf.Max(0.2f, desiredNucleusScale * 0.8f);
+            size = Vector3.Max(size, minSize);
+            Vector3 centerPos = (min + max) * 0.5f;
+            return new Bounds(centerPos, size);
+        }
+
+        return new Bounds(root.position, Vector3.one * Mathf.Max(0.2f, desiredNucleusScale * 0.8f));
     }
 
     void AdjustCameraToFitBounds(Camera cam, Bounds bounds, float padding = 1.1f)
@@ -1159,6 +1307,9 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
         if (bounds.size == Vector3.zero) return;
 
         float radius = bounds.extents.magnitude * padding;
+
+        float minRadius = Mathf.Max(1f, desiredNucleusScale * 1.5f);
+        radius = Mathf.Max(radius, minRadius);
 
         if (cam.orthographic)
         {
@@ -1169,10 +1320,12 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
 
         float fov = cam.fieldOfView * Mathf.Deg2Rad;
         float neededDistance = radius / Mathf.Sin(fov * 0.5f);
+
         Vector3 dirToCamera = (cam.transform.position - bounds.center).normalized;
         if (dirToCamera == Vector3.zero) dirToCamera = -cam.transform.forward;
 
-        Vector3 newCamPos = bounds.center + dirToCamera * neededDistance;
+        Vector3 newCamPos = bounds.center + dirToCamera * Mathf.Max(neededDistance, minRadius * 0.9f);
+
         cam.transform.position = newCamPos;
         cam.transform.LookAt(bounds.center);
     }
@@ -1181,5 +1334,91 @@ public class VisualizerSpawnerWithRings : MonoBehaviour
     {
         var go = new GameObject(name);
         return go;
+    }
+
+    // --------------------------
+    // PUBLIC ENTRY: start the  reaction
+    // --------------------------
+    public void StartReaction()
+    {
+        if (reactionStarted) return;
+        reactionStarted = true;
+
+        if (startReactionButton != null) startReactionButton.interactable = false;
+
+        if (pendingTransfers == null || pendingSymbolToSpawned == null || pendingWorldRoot == null)
+        {
+            Debug.LogWarning("[VisualizerSpawnerWithRings] No pending reaction data to run.");
+            if (startReactionButton != null) startReactionButton.interactable = true;
+            reactionStarted = false;
+            return;
+        }
+
+        StartCoroutine(ApplyChemistryVisuals(pendingTransfers, pendingSymbolToSpawned, pendingWorldRoot));
+    }
+
+    // --------------------------
+    // Camera zoom pulse (zoom out -> zoom in -> settle)
+    // --------------------------
+    private IEnumerator CameraZoomPulse(Transform worldRoot, float outFactor = 0.5f, float inFactor = 0.9f, float settleDuration = 0.6f)
+    {
+        if (worldRoot == null || Camera.main == null) yield break;
+        Camera cam = Camera.main;
+        Bounds b = ComputeBoundsOfChildren(worldRoot);
+        if (b.size == Vector3.zero) yield break;
+
+        Vector3 center = b.center;
+        Vector3 origPos = cam.transform.position;
+        Quaternion origRot = cam.transform.rotation;
+
+        // direction from bounds center to camera
+        Vector3 dir = (origPos - center).normalized;
+        if (dir == Vector3.zero) dir = -cam.transform.forward;
+
+        float startDist = Vector3.Distance(origPos, center);
+
+        // targets
+        float outDist = startDist * (1f + Mathf.Abs(outFactor));    // zoom out (increase distance)
+        float inDist = startDist * Mathf.Max(0.35f, inFactor);      // zoom in (closer than original)
+        float durOut = 0.45f;
+        float durIn = 0.55f;
+
+        // OUT
+        float elapsed = 0f;
+        while (elapsed < durOut)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / durOut);
+            float dist = Mathf.Lerp(startDist, outDist, t);
+            cam.transform.position = center + dir * dist;
+            cam.transform.LookAt(center);
+            yield return null;
+        }
+
+        // IN (closer than original, brief)
+        elapsed = 0f;
+        while (elapsed < durIn)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / durIn);
+            float dist = Mathf.Lerp(outDist, inDist, t);
+            cam.transform.position = center + dir * dist;
+            cam.transform.LookAt(center);
+            yield return null;
+        }
+
+        // settle back to original smoothly
+        elapsed = 0f;
+        while (elapsed < settleDuration)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.SmoothStep(0f, 1f, elapsed / settleDuration);
+            cam.transform.position = Vector3.Lerp(center + dir * inDist, origPos, t);
+            cam.transform.rotation = Quaternion.Slerp(cam.transform.rotation, origRot, t);
+            yield return null;
+        }
+
+        cam.transform.position = origPos;
+        cam.transform.rotation = origRot;
     }
 }
