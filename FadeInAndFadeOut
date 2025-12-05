@@ -61,6 +61,18 @@ Mathf.Lerp(a, b, t) means:
 👉 t goes from 0 → 1 over time
 float alpha = Mathf.Lerp(0f, 1f, t / duration);
 
+0 sec     0.5     1.0     1.5     2.0
+ |--------|--------|--------|--------|
+ t
+
+0        0.25     0.5     0.75     1
+ |--------|--------|--------|--------|
+ t/duration (progress)
+
+Invisible →───────────────→ Fully Visible
+           Fading...
+
+
 
 ------------------------------------------------------------------------
   1.Fadding GameObject
@@ -82,7 +94,8 @@ float alpha = Mathf.Lerp(0f, 1f, t / duration);
         color.a = 0f;
         mat.color = color;
 
-        float t = 0f;
+        float t =
+0f;
 
         while (t < duration)
         {
@@ -92,7 +105,7 @@ float alpha = Mathf.Lerp(0f, 1f, t / duration);
             color.a = alpha;
             mat.color = color;
 
-            yield return null;
+            yield return null;  // Stop here. Continue on the next frame.”
         }
     }
 
@@ -255,3 +268,4 @@ FadeInUI(1.5f);
 FadeOutUI(1.5f);
 
   
+/////////////////////////////////////////////////////////
