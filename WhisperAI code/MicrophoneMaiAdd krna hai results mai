@@ -1,0 +1,63 @@
+ private float _lastCommandTime = 0f;
+ private float _commandCooldown = 0.18f; // tweak to avoid duplicates (seconds)
+
+ private void OnResult(string result)
+ {
+     // show transcript
+     text.text = result;
+     UiUtils.ScrollDown(scroll);
+
+     if (cubeMover == null) return;
+
+     // safety: avoid flooding with many events (same phrase chunk)
+     if (Time.realtimeSinceStartup - _lastCommandTime < _commandCooldown)
+         return;
+
+     var r = (result ?? "").ToLowerInvariant().Trim();
+
+     // whole-word checks: ensure "left" isn't matched inside "cleft" etc.
+     // using simple splitting to words is robust and fast.
+     var words = r.Split(new char[] { ' ', '.', ',', '?', '!', ';', ':' }, System.StringSplitOptions.RemoveEmptyEntries);
+
+     bool matched = false;
+
+     foreach (var w in words)
+     {
+         if (w == "left" || w == "moveleft" || w == "move-left")
+         {
+             cubeMover.CommandLeft();
+             matched = true;
+             break;
+         }
+         if (w == "right" || w == "moveright" || w == "move-right")
+         {
+             cubeMover.CommandRight();
+             matched = true;
+             break;
+         }
+         if (w == "up")
+         {
+             cubeMover.CommandUp();
+             matched = true;
+             break;
+         }
+         if (w == "down")
+         {
+             cubeMover.CommandDown();
+             matched = true;
+             break;
+         }
+         if (w == "stop" || w == "hold" || w == "freeze")
+         {
+             cubeMover.StopSmooth();
+             matched = true;
+             break;
+         }
+     }
+
+     if (matched)
+     {
+         _lastCommandTime = Time.realtimeSinceStartup;
+         Debug.Log($"Voice command matched: '{r}'");
+     }
+ }
