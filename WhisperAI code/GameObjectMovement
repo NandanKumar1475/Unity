@@ -1,0 +1,212 @@
+using UnityEngine;
+
+[RequireComponent(typeof(Transform))]
+public class CubeMover : MonoBehaviour
+{
+    [Header("Movement (tuning)")]
+    public float baseSpeed = 4f;             // reserved for future velocity-based features
+    public float smoothTime = 0.18f;
+    public float arriveThreshold = 0.02f;    // distance in world units to consider 'arrived'
+
+    [Header("Step distances")]
+    public float horizontalStep = 2.5f;
+    public float verticalStep = 1.0f;
+    public float forwardStep = 3.0f;
+    public float backwardStep = 3.0f;
+
+    [Header("Bobbing (while moving right)")]
+    public bool enableRightBobbing = true;
+    public float bobAmplitude = 0.25f;
+    public float bobFrequency = 2.2f;
+
+    [Header("Constraints (optional)")]
+    public bool clampPosition = true;
+    public Vector2 minXZ = new Vector2(-6f, -6f);
+    public Vector2 maxXZ = new Vector2(6f, 6f);
+
+    [Header("Behavior")]
+    [Tooltip("If true, the target will be clamped immediately when a command changes it (recommended).")]
+    public bool clampTargetOnCommand = true;
+
+    [Tooltip("If true, commands that would not change position because of clamps will nudge by a tiny epsilon so movement is visible.")]
+    public bool nudgeWhenClamped = true;
+
+    [Header("Debug")]
+    public bool enableVoiceDebugLogs = false;
+
+    // internals
+    private Vector3 _target;
+    private Vector3 _velocity = Vector3.zero;
+    private bool _isMoving = false;
+    private bool _useBobbing = false;
+    private float _bobTimer = 0f;
+
+    // cached squared threshold
+    private float _arriveThresholdSqr => arriveThreshold * arriveThreshold;
+
+    void Start()
+    {
+        _target = transform.position;
+    }
+
+    void Update()
+    {
+        // debug: print occasionally to not spam
+        if (enableVoiceDebugLogs && _isMoving)
+        {
+            Debug.Log($"[CubeMover] pos={transform.position} target={_target} vel={_velocity} moving={_isMoving}");
+        }
+
+        // apply bobbing offset only for smoothing target Y when bobbing active
+        Vector3 current = transform.position;
+        Vector3 targetNoBob = _target;
+
+        float bobOffset = 0f;
+        if (_useBobbing && enableRightBobbing)
+        {
+            _bobTimer += Time.deltaTime * bobFrequency;
+            bobOffset = Mathf.Sin(_bobTimer) * bobAmplitude;
+            targetNoBob.y = _target.y + bobOffset;
+        }
+
+        float maxSpeed = Mathf.Infinity;
+        Vector3 newPos = new Vector3(
+            Mathf.SmoothDamp(current.x, targetNoBob.x, ref _velocity.x, smoothTime, maxSpeed, Time.deltaTime),
+            Mathf.SmoothDamp(current.y, targetNoBob.y, ref _velocity.y, smoothTime, maxSpeed, Time.deltaTime),
+            Mathf.SmoothDamp(current.z, targetNoBob.z, ref _velocity.z, smoothTime, maxSpeed, Time.deltaTime)
+        );
+
+        if (clampPosition)
+        {
+            newPos.x = Mathf.Clamp(newPos.x, minXZ.x, maxXZ.x);
+            newPos.z = Mathf.Clamp(newPos.z, minXZ.y, maxXZ.y);
+        }
+
+        transform.position = newPos;
+
+        // arrival: use squared magnitude to avoid allocation and sqrt
+        var delta = _target - transform.position;
+        if (delta.sqrMagnitude <= _arriveThresholdSqr)
+        {
+            _isMoving = false;
+            _useBobbing = false;
+            _bobTimer = 0f;
+            // NOTE: do not zero _velocity here — keep it to avoid micro-jitter when new commands arrive.
+            // _velocity = Vector3.zero;
+        }
+        else
+        {
+            _isMoving = true;
+        }
+    }
+
+    // Helper: clamp a candidate target according to min/max and return it
+    private Vector3 ClampTarget(Vector3 candidate)
+    {
+        if (!clampPosition) return candidate;
+        candidate.x = Mathf.Clamp(candidate.x, minXZ.x, maxXZ.x);
+        candidate.z = Mathf.Clamp(candidate.z, minXZ.y, maxXZ.y);
+        return candidate;
+    }
+
+    // Helper: apply a nudge if new target equals current pos (helps make movement visible when clamp prevented step)
+    private Vector3 MaybeNudge(Vector3 newTarget, Vector3 currentPos)
+    {
+        if (!nudgeWhenClamped) return newTarget;
+        if ((newTarget - currentPos).sqrMagnitude <= _arriveThresholdSqr)
+        {
+            // nudge along horizontal axis by a tiny epsilon (prefer X then Z)
+            const float eps = 0.025f;
+            var nudged = newTarget + new Vector3(eps, 0f, 0f);
+            // ensure nudged is still inside clamps
+            nudged = ClampTarget(nudged);
+            return nudged;
+        }
+        return newTarget;
+    }
+
+    // Public commands: these ALWAYS change _target (stacking commands) and do not zero velocity,
+    // which makes quick successive commands feel smooth and continuous.
+    public void CommandLeft()
+    {
+        var candidate = _target + Vector3.left * horizontalStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+        _useBobbing = false;
+    }
+
+    public void CommandRight()
+    {
+        var wasBobbing = _useBobbing;
+        var candidate = _target + Vector3.right * horizontalStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+
+        // enable bobbing only when we entered bobbing mode (don't reset timer if already bobbing)
+        if (!wasBobbing) _bobTimer = 0f;
+        _useBobbing = true;
+    }
+
+    public void CommandUp()
+    {
+        var candidate = _target + Vector3.up * verticalStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+    }
+
+    public void CommandDown()
+    {
+        var candidate = _target + Vector3.down * verticalStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+    }
+
+    public void CommandForward()
+    {
+        var candidate = _target + Vector3.forward * forwardStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+        _useBobbing = false;
+    }
+
+    public void CommandBackward()
+    {
+        var candidate = _target + Vector3.back * backwardStep;
+        if (clampTargetOnCommand) candidate = ClampTarget(candidate);
+        candidate = MaybeNudge(candidate, transform.position);
+        _target = candidate;
+        _useBobbing = false;
+    }
+
+    /// <summary>
+    /// Smoothly stop by setting target to current position.
+    /// If snapImmediate is true, velocity will be zeroed and transform will snap.
+    /// </summary>
+    public void StopSmooth(bool snapImmediate = false)
+    {
+        _target = transform.position;
+        _useBobbing = false;
+        if (snapImmediate)
+            _velocity = Vector3.zero;
+    }
+
+    /// <summary>
+    /// Force-move to an absolute world position (clamped). This replaces the target.
+    /// </summary>
+    public void MoveTo(Vector3 absolutePos, bool snapVelocity = false)
+    {
+        Vector3 t = clampTargetOnCommand ? ClampTarget(absolutePos) : absolutePos;
+        _target = MaybeNudge(t, transform.position);
+
+        if (snapVelocity)
+            _velocity = Vector3.zero;
+    }
+
+    public Vector3 GetTarget() => _target;
+    public bool IsMoving() => _isMoving;
+}
