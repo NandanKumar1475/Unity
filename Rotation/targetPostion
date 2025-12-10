@@ -1,0 +1,32 @@
+How to FIND the target rotation.
+
+WHAT IS targetRotation?
+It is simply:
+“The rotation you WANT your object to reach.”
+Your object will rotate from current rotation → to targetRotation. So the question becomes:
+
+WAY 2 — Using LookRotation (toward a direction)
+Vector3 dir = target.position - transform.position;
+Quaternion targetRotation = Quaternion.LookRotation(dir);
+
+------------------------------------------------------
+Using current rotation + change
+Quaternion targetRotation = transform.rotation * Quaternion.Euler(0, 90, 0);
+targetRotation = Quaternion.LookRotation(target.position - transform.position);
+
+A flowchart: How to choose targetRotation
+Do you want to rotate TO a specific angle?
+
+                ┌──→ Need to face TARGET? ───→ LookRotation(dir)
+                │
+                ├──→ Need to face DIRECTION? → LookRotation(direction)
+                │
+START → What →  ├──→ Rotate TO ANGLE? ───────→ Quaternion.Euler(x,y,z)
+rotation?       │
+                ├──→ Rotate BY ANGLE? ───────→ current * Quaternion.Euler()
+                │
+                ├──→ Smooth rotation? ───────→ Lerp / Slerp / RotateTowards
+                │
+                ├──→ Physics rotation? ─────→ Rigidbody.MoveRotation()
+                │
+                └──→ Limit rotation? ────────→ Clamp + Quaternion.Euler()
