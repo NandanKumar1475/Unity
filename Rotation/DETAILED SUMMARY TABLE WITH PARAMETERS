@@ -1,0 +1,323 @@
+Understood.
+Here is the **Quick Summary Table**, but now made **detailed**, with **full method names**, **all parameters**, **usage**, and **examples**.
+
+This is **perfect for student notes**.
+
+---
+
+# 🎓 **UNITY ROTATION — DETAILED SUMMARY TABLE WITH PARAMETERS**
+
+---
+
+# ⭐ **1. transform.Rotate()**
+
+### **Purpose:** Add rotation gradually
+
+### **Signature (2 versions):**
+
+```csharp
+void Rotate(float x, float y, float z);
+void Rotate(float x, float y, float z, Space space);
+void Rotate(Vector3 axis, float angle);
+void Rotate(Vector3 axis, float angle, Space space);
+```
+
+### **Parameters:**
+
+* `x, y, z` → Rotation in degrees
+* `axis` → Direction to rotate around
+* `angle` → Degrees to rotate
+* `space` → Local or World space
+
+### **Example:**
+
+```csharp
+transform.Rotate(0, 90 * Time.deltaTime, 0);
+transform.Rotate(Vector3.up, 45);
+```
+
+---
+
+# ⭐ **2. transform.eulerAngles**
+
+### **Purpose:** Set rotation instantly (simple)
+
+### **Signature:**
+
+```csharp
+Vector3 eulerAngles;
+```
+
+### **Parameter:**
+
+* `Vector3(x, y, z)` → rotation angles
+
+### **Example:**
+
+```csharp
+transform.eulerAngles = new Vector3(0, 45, 0);
+```
+
+---
+
+# ⭐ **3. Quaternion.Euler()**
+
+### **Purpose:** Safe rotation set with no gimbal lock
+
+### **Signature:**
+
+```csharp
+Quaternion Euler(float x, float y, float z);
+Quaternion Euler(Vector3 eulerAngles);
+```
+
+### **Parameters:**
+
+* `x, y, z` → angles
+* `eulerAngles` → Vector3 containing angles
+
+### **Example:**
+
+```csharp
+transform.rotation = Quaternion.Euler(0, 45, 0);
+```
+
+---
+
+# ⭐ **4. transform.LookAt()**
+
+### **Purpose:** Rotate object to face a target
+
+### **Signature:**
+
+```csharp
+void LookAt(Transform target);
+void LookAt(Vector3 worldPosition);
+```
+
+### **Parameters:**
+
+* `target` → transform to look at
+* `worldPosition` → position to look at
+
+### **Example:**
+
+```csharp
+transform.LookAt(player);
+```
+
+---
+
+# ⭐ **5. Quaternion.LookRotation()**
+
+### **Purpose:** Face a direction (not an object)
+
+### **Signature:**
+
+```csharp
+Quaternion LookRotation(Vector3 forward);
+Quaternion LookRotation(Vector3 forward, Vector3 upwards);
+```
+
+### **Parameters:**
+
+* `forward` → direction to face
+* `upwards` → up direction (optional)
+
+### **Example:**
+
+```csharp
+transform.rotation = Quaternion.LookRotation(targetDir);
+```
+
+---
+
+# ⭐ **6. Quaternion.Lerp()**
+
+### **Purpose:** Smooth slow rotation (linear interpolation)
+
+### **Signature:**
+
+```csharp
+Quaternion Lerp(Quaternion a, Quaternion b, float t);
+```
+
+### **Parameters:**
+
+* `a` → current rotation
+* `b` → target rotation
+* `t` → time factor (0–1)
+
+### **Example:**
+
+```csharp
+transform.rotation = Quaternion.Lerp(
+    transform.rotation, 
+    targetRotation, 
+    5f * Time.deltaTime
+);
+```
+
+---
+
+# ⭐ **7. Quaternion.Slerp()**
+
+### **Purpose:** Smooth natural rotation (spherical interpolation)
+
+### **Signature:**
+
+```csharp
+Quaternion Slerp(Quaternion a, Quaternion b, float t);
+```
+
+### **Parameters:**
+
+* `a` → start rotation
+* `b` → target rotation
+* `t` → smoothing 0–1
+
+### **Example:**
+
+```csharp
+transform.rotation = Quaternion.Slerp(
+    transform.rotation, 
+    targetRotation, 
+    5f * Time.deltaTime
+);
+```
+
+---
+
+# ⭐ **8. Quaternion.RotateTowards()**
+
+### **Purpose:** Rotate with fixed speed (degrees per second)
+
+### **Signature:**
+
+```csharp
+Quaternion RotateTowards(Quaternion from, Quaternion to, float maxDegreesDelta);
+```
+
+### **Parameters:**
+
+* `from` → current rotation
+* `to` → target rotation
+* `maxDegreesDelta` → degrees per frame
+
+### **Example:**
+
+```csharp
+transform.rotation = Quaternion.RotateTowards(
+    transform.rotation,
+    targetRotation,
+    180 * Time.deltaTime
+);
+```
+
+---
+
+# ⭐ **9. Quaternion.AngleAxis()**
+
+### **Purpose:** Create rotation around ANY axis
+
+### **Signature:**
+
+```csharp
+Quaternion AngleAxis(float angle, Vector3 axis);
+```
+
+### **Parameters:**
+
+* `angle` → degrees
+* `axis` → axis direction
+
+### **Example:**
+
+```csharp
+Quaternion q = Quaternion.AngleAxis(45, Vector3.forward);
+transform.rotation *= q;
+```
+
+---
+
+# ⭐ **10. Incremental Quaternion Rotation**
+
+### **Purpose:** Smooth manual rotation without gimbal lock
+
+### **Signature:**
+
+```csharp
+rotation *= Quaternion.Euler(x, y, z);
+```
+
+### **Example:**
+
+```csharp
+transform.rotation *= Quaternion.Euler(0, 30 * Time.deltaTime, 0);
+```
+
+---
+
+# ⭐ **11. Rigidbody.MoveRotation()**
+
+### **Purpose:** Rotate physics objects safely
+
+### **Signature:**
+
+```csharp
+void MoveRotation(Quaternion rot);
+```
+
+### **Parameter:**
+
+* `rot` → target rotation
+
+### **Example:**
+
+```csharp
+rb.MoveRotation(targetRotation);
+```
+
+---
+
+# ⭐ **12. Rigidbody.angularVelocity**
+
+### **Purpose:** Add physics spinning
+
+### **Signature:**
+
+```csharp
+Vector3 angularVelocity;
+```
+
+### **Parameter:**
+
+* direction * speed
+
+### **Example:**
+
+```csharp
+rb.angularVelocity = transform.up * 5f;
+```
+
+---
+
+# ⭐ **13. Rotation Clamping (Prevent Camera Flip)**
+
+### **Purpose:** Limit up/down rotation
+
+### **Signatures:**
+
+```csharp
+Mathf.Clamp(value, min, max);
+Quaternion.Euler(x, y, z);
+```
+
+### Example:
+
+```csharp
+xRot = Mathf.Clamp(xRot, -80f, 80f);
+transform.localRotation = Quaternion.Euler(xRot, yRot, 0);
+```
+
+Choose **A**, **B**, or **C**.
