@@ -1,0 +1,29 @@
+Smooth Rotation (Lerp)
+
+transform.rotation = Quaternion.Lerp(
+    transform.rotation,
+    targetRotation,
+    speed * Time.deltaTime
+);
+
+----------------------------------------------------------------------------
+Natural Smooth Rotation (Slerp)
+transform.rotation = Quaternion.Slerp(
+    transform.rotation,
+    targetRotation,
+    speed * Time.deltaTime
+);
+----------------------------------------------------------------------------------------
+Fixed-Speed Rotation (RotateTowards)
+transform.rotation = Quaternion.RotateTowards(
+    transform.rotation,
+    targetRotation,
+    speed * Time.deltaTime
+);
+--------------------------------------------------------------------------------------------------
+Physics Rotation (Only if using Rigidbody)
+rb.MoveRotation(targetRotation);
+---------------------------------------------------------------------------------------
+Useful Concept — Clamping Rotation (Limit Up/Down)
+xRotation = Mathf.Clamp(xRotation, -80f, 80f);
+transform.localRotation = Quaternion.Euler(xRotation, yRotation, 0);
