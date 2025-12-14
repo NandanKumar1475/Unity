@@ -1,0 +1,1055 @@
+//using UnityEngine;
+//using Whisper.Samples;
+//using System.Text.RegularExpressions;
+
+//public class VoiceCommand : MonoBehaviour
+//{
+//    [Header("Voice Source")]
+//    public StreamingSampleMic mic;
+
+//    [Header("Target")]
+//    public Transform target;
+
+//    [Header("Movement")]
+//    public float moveStep = 1f;
+//    public float moveSpeed = 3f;
+
+//    [Header("Rotation")]
+//    public float rotateStep = 45f;
+//    public float rotateSpeed = 180f;
+
+//    // animation state
+//    Vector3 moveStart, moveEnd;
+//    Quaternion rotStart, rotEnd;
+//    float moveT, rotT;
+//    bool isMoving, isRotating;
+
+//    private void OnEnable()
+//    {
+//        mic.OnFinalText += HandleFinalCommand;
+//    }
+
+//    private void OnDisable()
+//    {
+//        mic.OnFinalText -= HandleFinalCommand;
+//    }
+
+//    private void Update()
+//    {
+//        UpdateMove();
+//        UpdateRotate();
+//    }
+
+//    // 🔥 EXECUTES ONLY ONCE PER SENTENCE
+//    private void HandleFinalCommand(string text)
+//    {
+//        Debug.Log("EXECUTING COMMAND: " + text);
+
+//        VoiceAction action = GetLastAction(text);
+//        VoiceDirection direction = GetLastDirection(text);
+
+//        if (action == VoiceAction.None || direction == VoiceDirection.None)
+//            return;
+
+//        float number = ExtractNumber(text);
+
+//        if (action == VoiceAction.Move)
+//        {
+//            StartMove(direction, number > 0 ? number : moveStep);
+//        }
+//        else if (action == VoiceAction.Rotate)
+//        {
+//            StartRotate(direction, number > 0 ? number : rotateStep);
+//        }
+//    }
+
+//    // ================= MOVE =================
+
+//    void StartMove(VoiceDirection dir, float distance)
+//    {
+//        isMoving = true;
+//        moveT = 0f;
+//        moveStart = target.position;
+//        moveEnd = moveStart + GetMoveVector(dir) * distance;
+
+//        Debug.Log($"MOVE → {dir}");
+//    }
+
+//    void UpdateMove()
+//    {
+//        if (!isMoving) return;
+
+//        moveT += Time.deltaTime * moveSpeed;
+//        target.position = Vector3.Lerp(moveStart, moveEnd, moveT);
+
+//        if (moveT >= 1f)
+//            isMoving = false;
+//    }
+
+//    // ================= ROTATE =================
+
+//    void StartRotate(VoiceDirection dir, float degrees)
+//    {
+//        isRotating = true;
+//        rotT = 0f;
+//        rotStart = target.rotation;
+//        rotEnd = rotStart * Quaternion.AngleAxis(degrees, GetRotationAxis(dir));
+
+//        Debug.Log($"ROTATE → {dir} ({degrees}°)");
+//    }
+
+//    void UpdateRotate()
+//    {
+//        if (!isRotating) return;
+
+//        rotT += Time.deltaTime * (rotateSpeed / 180f);
+//        target.rotation = Quaternion.Slerp(rotStart, rotEnd, rotT);
+
+//        if (rotT >= 1f)
+//            isRotating = false;
+//    }
+
+//    // ================= PARSING =================
+
+//    VoiceAction GetLastAction(string t)
+//    {
+//        int move = Mathf.Max(t.LastIndexOf("move"), t.LastIndexOf("go"));
+//        int rotate = Mathf.Max(t.LastIndexOf("rotate"), t.LastIndexOf("turn"));
+
+//        int max = Mathf.Max(move, rotate);
+//        if (max == -1) return VoiceAction.None;
+
+//        return max == rotate ? VoiceAction.Rotate : VoiceAction.Move;
+//    }
+
+//    VoiceDirection GetLastDirection(string t)
+//    {
+//        int l = t.LastIndexOf("left");
+//        int r = t.LastIndexOf("right");
+//        int f = t.LastIndexOf("forward");
+//        int b = t.LastIndexOf("back");
+//        int u = t.LastIndexOf("up");
+//        int d = t.LastIndexOf("down");
+
+//        int max = Mathf.Max(l, r, f, b, u, d);
+//        if (max == -1) return VoiceDirection.None;
+
+//        if (max == l) return VoiceDirection.Left;
+//        if (max == r) return VoiceDirection.Right;
+//        if (max == f) return VoiceDirection.Forward;
+//        if (max == b) return VoiceDirection.Backward;
+//        if (max == u) return VoiceDirection.Up;
+//        return VoiceDirection.Down;
+//    }
+
+//    float ExtractNumber(string t)
+//    {
+//        var m = Regex.Match(t, @"\d+");
+//        return m.Success ? float.Parse(m.Value) : -1f;
+//    }
+
+//    Vector3 GetMoveVector(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.left,
+//            VoiceDirection.Right => Vector3.right,
+//            VoiceDirection.Forward => Vector3.forward,
+//            VoiceDirection.Backward => Vector3.back,
+//            VoiceDirection.Up => Vector3.up,
+//            VoiceDirection.Down => Vector3.down,
+//            _ => Vector3.zero
+//        };
+//    }
+
+//    Vector3 GetRotationAxis(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.up * -1,
+//            VoiceDirection.Right => Vector3.up,
+//            VoiceDirection.Up => Vector3.right * -1,
+//            VoiceDirection.Down => Vector3.right,
+//            _ => Vector3.zero
+//        };
+//    }
+//}
+
+//// ENUMS
+//public enum VoiceAction { None, Move, Rotate }
+//public enum VoiceDirection { None, Left, Right, Forward, Backward, Up, Down }
+
+
+
+//using UnityEngine;
+//using Whisper.Samples;
+//using System.Text.RegularExpressions;
+
+//public class VoiceCommandController_ADVANCED : MonoBehaviour
+//{
+//    [Header("Voice Source")]
+//    public StreamingSampleMic mic;
+
+//    [Header("Target")]
+//    public Transform target;
+
+//    [Header("Mode")]
+//    public bool continuousMode = false; // 🔥 TOGGLE IN INSPECTOR
+
+//    [Header("Movement")]
+//    public float moveStep = 1f;
+//    public float moveSpeed = 2.5f;
+
+//    [Header("Rotation")]
+//    public float rotateStep = 45f;
+//    public float rotateSpeed = 120f;
+
+//    [Header("Reset")]
+//    public float resetSpeed = 2f;
+
+//    [Header("Wake Word")]
+//    public string wakeWord = "hey jaanu";
+
+//    // runtime state
+//    bool wakeActive;
+//    bool isMoving, isRotating;
+//    bool resetPos, resetRot;
+
+//    Vector3 moveDir;
+//    Vector3 startPos;
+//    Quaternion startRot;
+
+//    Vector3 resetPosStart;
+//    Quaternion resetRotStart;
+//    float resetT;
+
+//    private void Awake()
+//    {
+//        startPos = target.position;
+//        startRot = target.rotation;
+//    }
+
+//    private void OnEnable()
+//    {
+//        mic.OnFinalText += HandleCommand;
+//    }
+
+//    private void OnDisable()
+//    {
+//        mic.OnFinalText -= HandleCommand;
+//    }
+
+//    private void Update()
+//    {
+//        if (continuousMode)
+//        {
+//            if (isMoving)
+//                target.Translate(moveDir * moveSpeed * Time.deltaTime, Space.World);
+
+//            if (isRotating)
+//                target.Rotate(moveDir * rotateSpeed * Time.deltaTime, Space.World);
+//        }
+
+//        HandleReset();
+//    }
+
+//    // ================= VOICE =================
+
+//    private void HandleCommand(string text)
+//    {
+//        text = text.ToLower().Trim();
+//        Debug.Log("VOICE FINAL: " + text);
+
+//        // 🔔 WAKE WORD
+//        if (text.Contains(wakeWord))
+//        {
+//            wakeActive = true;
+//            Debug.Log("WAKE WORD DETECTED");
+//            return;
+//        }
+
+//        if (!wakeActive)
+//            return;
+
+//        // STOP
+//        if (text.Contains("stop"))
+//        {
+//            StopAll();
+//            return;
+//        }
+
+//        // RESET POSITION
+//        if (text.Contains("reset position"))
+//        {
+//            StartResetPosition();
+//            return;
+//        }
+
+//        // RESET ROTATION
+//        if (text.Contains("reset rotation"))
+//        {
+//            StartResetRotation();
+//            return;
+//        }
+
+//        VoiceAction action = GetLastAction(text);
+//        VoiceDirection direction = GetLastDirection(text);
+
+//        if (action == VoiceAction.None || direction == VoiceDirection.None)
+//            return;
+
+//        moveDir = GetDirectionVector(direction);
+
+//        if (action == VoiceAction.Move)
+//        {
+//            if (continuousMode)
+//            {
+//                isMoving = true;
+//                isRotating = false;
+//            }
+//            else
+//            {
+//                target.position += moveDir * moveStep;
+//            }
+//        }
+//        else if (action == VoiceAction.Rotate)
+//        {
+//            Vector3 axis = GetRotationAxis(direction);
+
+//            if (continuousMode)
+//            {
+//                moveDir = axis;
+//                isRotating = true;
+//                isMoving = false;
+//            }
+//            else
+//            {
+//                target.Rotate(axis, rotateStep, Space.World);
+//            }
+//        }
+//    }
+
+//    // ================= RESET =================
+
+//    void StartResetPosition()
+//    {
+//        resetPos = true;
+//        resetRot = false;
+//        resetT = 0f;
+//        resetPosStart = target.position;
+//        Debug.Log("RESET POSITION");
+//    }
+
+//    void StartResetRotation()
+//    {
+//        resetRot = true;
+//        resetPos = false;
+//        resetT = 0f;
+//        resetRotStart = target.rotation;
+//        Debug.Log("RESET ROTATION");
+//    }
+
+//    void HandleReset()
+//    {
+//        if (resetPos)
+//        {
+//            resetT += Time.deltaTime * resetSpeed;
+//            target.position = Vector3.Lerp(resetPosStart, startPos, resetT);
+//            if (resetT >= 1f) resetPos = false;
+//        }
+
+//        if (resetRot)
+//        {
+//            resetT += Time.deltaTime * resetSpeed;
+//            target.rotation = Quaternion.Slerp(resetRotStart, startRot, resetT);
+//            if (resetT >= 1f) resetRot = false;
+//        }
+//    }
+
+//    void StopAll()
+//    {
+//        isMoving = false;
+//        isRotating = false;
+//        resetPos = false;
+//        resetRot = false;
+//        Debug.Log("STOPPED");
+//    }
+
+//    // ================= PARSING =================
+
+//    VoiceAction GetLastAction(string t)
+//    {
+//        int move = Mathf.Max(t.LastIndexOf("move"), t.LastIndexOf("go"));
+//        int rotate = Mathf.Max(t.LastIndexOf("rotate"), t.LastIndexOf("turn"));
+//        int max = Mathf.Max(move, rotate);
+//        if (max == -1) return VoiceAction.None;
+//        return max == rotate ? VoiceAction.Rotate : VoiceAction.Move;
+//    }
+
+//    VoiceDirection GetLastDirection(string t)
+//    {
+//        int l = t.LastIndexOf("left");
+//        int r = t.LastIndexOf("right");
+//        int f = t.LastIndexOf("forward");
+//        int b = t.LastIndexOf("back");
+//        int u = t.LastIndexOf("up");
+//        int d = t.LastIndexOf("down");
+
+//        int max = Mathf.Max(l, r, f, b, u, d);
+//        if (max == -1) return VoiceDirection.None;
+
+//        if (max == l) return VoiceDirection.Left;
+//        if (max == r) return VoiceDirection.Right;
+//        if (max == f) return VoiceDirection.Forward;
+//        if (max == b) return VoiceDirection.Backward;
+//        if (max == u) return VoiceDirection.Up;
+//        return VoiceDirection.Down;
+//    }
+
+//    Vector3 GetDirectionVector(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.left,
+//            VoiceDirection.Right => Vector3.right,
+//            VoiceDirection.Forward => Vector3.forward,
+//            VoiceDirection.Backward => Vector3.back,
+//            VoiceDirection.Up => Vector3.up,
+//            VoiceDirection.Down => Vector3.down,
+//            _ => Vector3.zero
+//        };
+//    }
+
+//    Vector3 GetRotationAxis(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.up * -1,
+//            VoiceDirection.Right => Vector3.up,
+//            VoiceDirection.Up => Vector3.right * -1,
+//            VoiceDirection.Down => Vector3.right,
+//            _ => Vector3.zero
+//        };
+//    }
+//}
+
+//// ENUMS
+//public enum VoiceAction { None, Move, Rotate }
+//public enum VoiceDirection { None, Left, Right, Forward, Backward, Up, Down }
+
+
+
+//using UnityEngine;
+//using Whisper.Samples;
+
+//public class VoiceCommandController_ADVANCED_SMOOTH : MonoBehaviour
+//{
+//    [Header("Voice Source")]
+//    public StreamingSampleMic mic;
+
+//    [Header("Target")]
+//    public Transform target;
+
+//    [Header("Mode")]
+//    public bool continuousMode = false;
+
+//    [Header("Movement")]
+//    public float moveStep = 1f;
+//    public float moveSpeed = 2.5f;
+//    public float moveSmooth = 6f;
+
+//    [Header("Rotation")]
+//    public float rotateStep = 45f;
+//    public float rotateSpeed = 120f;
+//    public float rotateSmooth = 6f;
+
+//    [Header("Reset")]
+//    public float resetSpeed = 2f;
+
+//    [Header("Wake Word")]
+//    public string wakeWord = "hey";
+
+//    // original state
+//    Vector3 originPos;
+//    Quaternion originRot;
+
+//    // continuous movement
+//    Vector3 targetMoveVelocity;
+//    Vector3 currentMoveVelocity;
+
+//    Vector3 targetAngularVelocity;
+//    Vector3 currentAngularVelocity;
+
+//    // one-time smooth movement
+//    bool oneTimeMoving;
+//    Vector3 moveStart;
+//    Vector3 moveEnd;
+//    float moveT;
+
+//    // one-time rotation
+//    bool oneTimeRotating;
+//    Quaternion rotStart, rotEnd;
+//    float rotT;
+
+//    // reset
+//    bool resetPos, resetRot;
+//    Vector3 resetPosStart;
+//    Quaternion resetRotStart;
+//    float resetT;
+
+//    bool wakeActive;
+
+//    private void Awake()
+//    {
+//        originPos = target.position;
+//        originRot = target.rotation;
+//    }
+
+//    private void OnEnable()
+//    {
+//        mic.OnFinalText += HandleCommand;
+//    }
+
+//    private void OnDisable()
+//    {
+//        mic.OnFinalText -= HandleCommand;
+//    }
+
+//    private void Update()
+//    {
+//        HandleContinuousMove();
+//        HandleContinuousRotate();
+//        HandleOneTimeMove();
+//        HandleOneTimeRotate();
+//        HandleReset();
+//    }
+
+//    // ================= VOICE =================
+
+//    void HandleCommand(string text)
+//    {
+//        text = text.ToLower().Trim();
+//        Debug.Log("VOICE: " + text);
+
+//        if (text.Contains(wakeWord))
+//        {
+//            wakeActive = true;
+//            Debug.Log("WAKE ACTIVE");
+//            return;
+//        }
+
+//        if (!wakeActive) return;
+
+//        if (text.Contains("stop"))
+//        {
+//            StopAll();
+//            return;
+//        }
+
+//        if (text.Contains("reset position"))
+//        {
+//            StartResetPosition();
+//            return;
+//        }
+
+//        if (text.Contains("reset rotation"))
+//        {
+//            StartResetRotation();
+//            return;
+//        }
+
+//        VoiceAction action = GetLastAction(text);
+//        VoiceDirection direction = GetLastDirection(text);
+
+//        if (action == VoiceAction.None || direction == VoiceDirection.None)
+//            return;
+
+//        if (action == VoiceAction.Move)
+//        {
+//            Vector3 dir = GetDirectionVector(direction);
+
+//            if (continuousMode)
+//            {
+//                targetMoveVelocity = dir * moveSpeed;
+//            }
+//            else
+//            {
+//                StartSmoothMove(dir * moveStep); // ✅ smooth move
+//            }
+//        }
+
+//        if (action == VoiceAction.Rotate)
+//        {
+//            Vector3 axis = GetRotationAxis(direction);
+
+//            if (continuousMode)
+//            {
+//                targetAngularVelocity = axis * rotateSpeed;
+//            }
+//            else
+//            {
+//                StartSmoothRotation(axis, rotateStep);
+//            }
+//        }
+//    }
+
+//    // ================= SMOOTH MOVE =================
+
+//    void StartSmoothMove(Vector3 offset)
+//    {
+//        oneTimeMoving = true;
+//        moveT = 0f;
+//        moveStart = target.position;
+//        moveEnd = moveStart + offset;
+//    }
+
+//    void HandleOneTimeMove()
+//    {
+//        if (!oneTimeMoving) return;
+
+//        moveT += Time.deltaTime * moveSmooth;
+//        target.position = Vector3.Lerp(moveStart, moveEnd, moveT);
+
+//        if (moveT >= 1f)
+//            oneTimeMoving = false;
+//    }
+
+//    // ================= CONTINUOUS MOVE =================
+
+//    void HandleContinuousMove()
+//    {
+//        if (!continuousMode) return;
+
+//        currentMoveVelocity = Vector3.Lerp(
+//            currentMoveVelocity,
+//            targetMoveVelocity,
+//            moveSmooth * Time.deltaTime
+//        );
+
+//        target.position += currentMoveVelocity * Time.deltaTime;
+//    }
+
+//    // ================= SMOOTH ROTATION =================
+
+//    void StartSmoothRotation(Vector3 axis, float degrees)
+//    {
+//        oneTimeRotating = true;
+//        rotT = 0f;
+//        rotStart = target.rotation;
+//        rotEnd = rotStart * Quaternion.AngleAxis(degrees, axis);
+//    }
+
+//    void HandleOneTimeRotate()
+//    {
+//        if (!oneTimeRotating) return;
+
+//        rotT += Time.deltaTime * rotateSmooth;
+//        target.rotation = Quaternion.Slerp(rotStart, rotEnd, rotT);
+
+//        if (rotT >= 1f)
+//            oneTimeRotating = false;
+//    }
+
+//    // ================= CONTINUOUS ROTATION =================
+
+//    void HandleContinuousRotate()
+//    {
+//        if (!continuousMode) return;
+
+//        currentAngularVelocity = Vector3.Lerp(
+//            currentAngularVelocity,
+//            targetAngularVelocity,
+//            rotateSmooth * Time.deltaTime
+//        );
+
+//        target.Rotate(currentAngularVelocity * Time.deltaTime, Space.World);
+//    }
+
+//    // ================= RESET =================
+
+//    void StartResetPosition()
+//    {
+//        resetPos = true;
+//        resetRot = false;
+//        resetT = 0f;
+//        resetPosStart = target.position;
+//    }
+
+//    void StartResetRotation()
+//    {
+//        resetRot = true;
+//        resetPos = false;
+//        resetT = 0f;
+//        resetRotStart = target.rotation;
+//    }
+
+//    void HandleReset()
+//    {
+//        if (resetPos)
+//        {
+//            resetT += Time.deltaTime * resetSpeed;
+//            target.position = Vector3.Lerp(resetPosStart, originPos, resetT);
+//            if (resetT >= 1f) resetPos = false;
+//        }
+
+//        if (resetRot)
+//        {
+//            resetT += Time.deltaTime * resetSpeed;
+//            target.rotation = Quaternion.Slerp(resetRotStart, originRot, resetT);
+//            if (resetT >= 1f) resetRot = false;
+//        }
+//    }
+
+//    void StopAll()
+//    {
+//        targetMoveVelocity = Vector3.zero;
+//        targetAngularVelocity = Vector3.zero;
+//        currentMoveVelocity = Vector3.zero;
+//        currentAngularVelocity = Vector3.zero;
+//        oneTimeMoving = false;
+//        oneTimeRotating = false;
+//        Debug.Log("STOPPED");
+//    }
+
+//    // ================= PARSING =================
+
+//    VoiceAction GetLastAction(string t)
+//    {
+//        int move = Mathf.Max(t.LastIndexOf("move"), t.LastIndexOf("go"));
+//        int rotate = Mathf.Max(t.LastIndexOf("rotate"), t.LastIndexOf("turn"));
+//        int max = Mathf.Max(move, rotate);
+//        if (max == -1) return VoiceAction.None;
+//        return max == rotate ? VoiceAction.Rotate : VoiceAction.Move;
+//    }
+
+//    VoiceDirection GetLastDirection(string t)
+//    {
+//        int l = t.LastIndexOf("left");
+//        int r = t.LastIndexOf("right");
+//        int f = t.LastIndexOf("forward");
+//        int b = t.LastIndexOf("back");
+//        int u = t.LastIndexOf("up");
+//        int d = t.LastIndexOf("down");
+
+//        int max = Mathf.Max(l, r, f, b, u, d);
+//        if (max == -1) return VoiceDirection.None;
+
+//        if (max == l) return VoiceDirection.Left;
+//        if (max == r) return VoiceDirection.Right;
+//        if (max == f) return VoiceDirection.Forward;
+//        if (max == b) return VoiceDirection.Backward;
+//        if (max == u) return VoiceDirection.Up;
+//        return VoiceDirection.Down;
+//    }
+
+//    Vector3 GetDirectionVector(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.left,
+//            VoiceDirection.Right => Vector3.right,
+//            VoiceDirection.Forward => Vector3.forward,
+//            VoiceDirection.Backward => Vector3.back,
+//            VoiceDirection.Up => Vector3.up,
+//            VoiceDirection.Down => Vector3.down,
+//            _ => Vector3.zero
+//        };
+//    }
+
+//    Vector3 GetRotationAxis(VoiceDirection d)
+//    {
+//        return d switch
+//        {
+//            VoiceDirection.Left => Vector3.up * -1,
+//            VoiceDirection.Right => Vector3.up,
+//            VoiceDirection.Up => Vector3.right * -1,
+//            VoiceDirection.Down => Vector3.right,
+//            _ => Vector3.zero
+//        };
+//    }
+//}
+
+//// ENUMS
+//public enum VoiceAction { None, Move, Rotate }
+//public enum VoiceDirection { None, Left, Right, Forward, Backward, Up, Down }
+
+
+
+using UnityEngine;
+using Whisper.Samples;
+using System.Text.RegularExpressions;
+
+public class VoiceCommandController_AI : MonoBehaviour
+{
+    [Header("Voice Source")]
+    public StreamingSampleMic mic;
+
+    [Header("Target")]
+    public Transform target;
+
+    [Header("Movement")]
+    public float moveSpeed = 2.5f;
+    public float moveSmooth = 6f;
+
+    [Header("Rotation")]
+    public float rotateSpeed = 120f;
+    public float rotateSmooth = 6f;
+
+    [Header("Reset")]
+    public float resetSpeed = 2f;
+
+    [Header("Wake Word")]
+    public string wakeWord = "hey";
+
+    Vector3 originPos;
+    Quaternion originRot;
+
+    Vector3 targetMoveVelocity;
+    Vector3 currentMoveVelocity;
+
+    Vector3 targetAngularVelocity;
+    Vector3 currentAngularVelocity;
+
+    float moveTimer;
+    float rotateTimer;
+
+    bool resetPos, resetRot;
+    Vector3 resetPosStart;
+    Quaternion resetRotStart;
+    float resetT;
+
+    bool wakeActive;
+
+    void Awake()
+    {
+        originPos = target.position;
+        originRot = target.rotation;
+    }
+
+    void OnEnable()
+    {
+        mic.OnFinalText += HandleCommand;
+    }
+
+    void OnDisable()
+    {
+        mic.OnFinalText -= HandleCommand;
+    }
+
+    void Update()
+    {
+        HandleMove();
+        HandleRotate();
+        HandleReset();
+    }
+
+    // ================= VOICE =================
+
+    void HandleCommand(string text)
+    {
+        text = text.ToLower().Trim();
+        Debug.Log("VOICE: " + text);
+
+        if (text.Contains(wakeWord))
+        {
+            wakeActive = true;
+            return;
+        }
+
+        if (!wakeActive) return;
+
+        if (text.Contains("stop"))
+        {
+            StopAll();
+            return;
+        }
+
+        if (text.Contains("reset position"))
+        {
+            StartResetPosition();
+            return;
+        }
+
+        if (text.Contains("reset rotation"))
+        {
+            StartResetRotation();
+            return;
+        }
+
+        HandleSpeedChange(text);
+
+        float duration = ExtractDuration(text);
+        VoiceAction action = GetAction(text);
+        VoiceDirection dir = GetDirection(text);
+
+        if (action == VoiceAction.Move && dir != VoiceDirection.None)
+        {
+            targetMoveVelocity = GetDirectionVector(dir) * moveSpeed;
+            moveTimer = duration;
+        }
+
+        if (action == VoiceAction.Rotate && dir != VoiceDirection.None)
+        {
+            targetAngularVelocity = GetRotationAxis(dir) * rotateSpeed;
+            rotateTimer = duration;
+        }
+    }
+
+    // ================= MOVE =================
+
+    void HandleMove()
+    {
+        if (moveTimer <= 0f)
+        {
+            targetMoveVelocity = Vector3.zero;
+            return;
+        }
+
+        moveTimer -= Time.deltaTime;
+
+        currentMoveVelocity = Vector3.Lerp(
+            currentMoveVelocity,
+            targetMoveVelocity,
+            moveSmooth * Time.deltaTime
+        );
+
+        target.position += currentMoveVelocity * Time.deltaTime;
+    }
+
+    // ================= ROTATE =================
+
+    void HandleRotate()
+    {
+        if (rotateTimer <= 0f)
+        {
+            targetAngularVelocity = Vector3.zero;
+            return;
+        }
+
+        rotateTimer -= Time.deltaTime;
+
+        currentAngularVelocity = Vector3.Lerp(
+            currentAngularVelocity,
+            targetAngularVelocity,
+            rotateSmooth * Time.deltaTime
+        );
+
+        target.Rotate(currentAngularVelocity * Time.deltaTime, Space.World);
+    }
+
+    // ================= RESET =================
+
+    void StartResetPosition()
+    {
+        resetPos = true;
+        resetRot = false;
+        resetT = 0f;
+        resetPosStart = target.position;
+    }
+
+    void StartResetRotation()
+    {
+        resetRot = true;
+        resetPos = false;
+        resetT = 0f;
+        resetRotStart = target.rotation;
+    }
+
+    void HandleReset()
+    {
+        if (resetPos)
+        {
+            resetT += Time.deltaTime * resetSpeed;
+            target.position = Vector3.Lerp(resetPosStart, originPos, resetT);
+            if (resetT >= 1f) resetPos = false;
+        }
+
+        if (resetRot)
+        {
+            resetT += Time.deltaTime * resetSpeed;
+            target.rotation = Quaternion.Slerp(resetRotStart, originRot, resetT);
+            if (resetT >= 1f) resetRot = false;
+        }
+    }
+
+    void StopAll()
+    {
+        targetMoveVelocity = Vector3.zero;
+        targetAngularVelocity = Vector3.zero;
+        currentMoveVelocity = Vector3.zero;
+        currentAngularVelocity = Vector3.zero;
+        moveTimer = 0f;
+        rotateTimer = 0f;
+        Debug.Log("STOPPED");
+    }
+
+    // ================= AI PARSING =================
+
+    float ExtractDuration(string t)
+    {
+        Match m = Regex.Match(t, @"(\d+(\.\d+)?)\s*(second|seconds)");
+        if (m.Success)
+            return float.Parse(m.Groups[1].Value);
+        return 1.5f; // default duration
+    }
+
+    void HandleSpeedChange(string t)
+    {
+        if (t.Contains("faster"))
+            moveSpeed += 1f;
+
+        if (t.Contains("slower"))
+            moveSpeed = Mathf.Max(0.5f, moveSpeed - 1f);
+
+        Match m = Regex.Match(t, @"speed\s*(\d+(\.\d+)?)");
+        if (m.Success)
+            moveSpeed = float.Parse(m.Groups[1].Value);
+    }
+
+    VoiceAction GetAction(string t)
+    {
+        if (t.Contains("move") || t.Contains("go")) return VoiceAction.Move;
+        if (t.Contains("rotate") || t.Contains("turn")) return VoiceAction.Rotate;
+        return VoiceAction.None;
+    }
+
+    VoiceDirection GetDirection(string t)
+    {
+        if (t.Contains("left")) return VoiceDirection.Left;
+        if (t.Contains("right")) return VoiceDirection.Right;
+        if (t.Contains("forward")) return VoiceDirection.Forward;
+        if (t.Contains("back")) return VoiceDirection.Backward;
+        if (t.Contains("up")) return VoiceDirection.Up;
+        if (t.Contains("down")) return VoiceDirection.Down;
+        return VoiceDirection.None;
+    }
+
+    Vector3 GetDirectionVector(VoiceDirection d)
+    {
+        return d switch
+        {
+            VoiceDirection.Left => Vector3.left,
+            VoiceDirection.Right => Vector3.right,
+            VoiceDirection.Forward => Vector3.forward,
+            VoiceDirection.Backward => Vector3.back,
+            VoiceDirection.Up => Vector3.up,
+            VoiceDirection.Down => Vector3.down,
+            _ => Vector3.zero
+        };
+    }
+
+    Vector3 GetRotationAxis(VoiceDirection d)
+    {
+        return d switch
+        {
+            VoiceDirection.Left => Vector3.up * -1,
+            VoiceDirection.Right => Vector3.up,
+            VoiceDirection.Up => Vector3.right * -1,
+            VoiceDirection.Down => Vector3.right,
+            _ => Vector3.zero
+        };
+    }
+}
+
+public enum VoiceAction { None, Move, Rotate }
+public enum VoiceDirection { None, Left, Right, Forward, Backward, Up, Down }
