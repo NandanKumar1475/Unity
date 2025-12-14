@@ -1,0 +1,81 @@
+using UnityEngine;
+using UnityEngine.UI;
+using Whisper.Utils;
+using System;
+
+namespace Whisper.Samples
+{
+    /// <summary>
+    /// Stream transcription from microphone input.
+    /// Fires FINAL text only once per spoken sentence.
+    /// </summary>
+    public class StreamingSampleMic : MonoBehaviour
+    {
+        public WhisperManager whisper;
+        public MicrophoneRecord microphoneRecord;
+
+        [Header("UI")]
+        public Button button;
+        public Text buttonText;
+        public Text text;
+        public ScrollRect scroll;
+
+        private WhisperStream _stream;
+
+        // 🔥 FINAL TEXT EVENT (USE THIS ONLY)
+        public event Action<string> OnFinalText;
+
+        private async void Start()
+        {
+            _stream = await whisper.CreateStream(microphoneRecord);
+
+            _stream.OnResultUpdated += OnResultUpdated;      // UI only
+            _stream.OnSegmentFinished += OnSegmentFinished; // FINAL command
+
+            microphoneRecord.OnRecordStop += OnRecordStop;
+            button.onClick.AddListener(OnButtonPressed);
+        }
+
+        private void OnButtonPressed()
+        {
+            if (!microphoneRecord.IsRecording)
+            {
+                _stream.StartStream();
+                microphoneRecord.StartRecord();
+                buttonText.text = "Stop";
+            }
+            else
+            {
+                microphoneRecord.StopRecord();
+                buttonText.text = "Record";
+            }
+        }
+
+        private void OnRecordStop(AudioChunk recordedAudio)
+        {
+            buttonText.text = "Record";
+        }
+
+        // 🔹 LIVE TEXT (for UI display only)
+        private void OnResultUpdated(string result)
+        {
+            if (string.IsNullOrWhiteSpace(result))
+                return;
+
+            text.text = result;
+            UiUtils.ScrollDown(scroll);
+        }
+
+        // 🔥 FINAL SENTENCE (FIRES ONCE)
+        private void OnSegmentFinished(WhisperResult segment)
+        {
+            if (string.IsNullOrWhiteSpace(segment.Result))
+                return;
+
+            string finalText = segment.Result.Trim().ToLower();
+            Debug.Log("FINAL VOICE: " + finalText);
+
+            OnFinalText?.Invoke(finalText);
+        }
+    }
+}
