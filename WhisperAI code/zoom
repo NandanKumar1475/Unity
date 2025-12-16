@@ -1,0 +1,83 @@
+
+using UnityEngine;
+
+public class ZoomWithTargetLimits_Learning : MonoBehaviour
+{
+    [Header("Camera")]
+    public Camera cam;
+
+    [Header("Zoom Target")]
+    public Transform zoomTarget;
+
+    [Header("Zoom Settings")]
+    public float zoomSpeed = 4f;
+    public float zoomSmooth = 6f;
+
+    [Header("Zoom Limits (relative to target)")]
+    public float minZoomDistance = 2f;
+    public float maxZoomDistance = 15f;
+
+    Vector3 targetZoomVelocity;
+    Vector3 currentZoomVelocity;
+    float zoomTimer;
+
+    void Awake()
+    {
+        if (cam == null)
+            cam = Camera.main;
+    }
+
+    void Update()
+    {
+        HandleZoom();
+    }
+
+    // -------- Intent (called by voice system) --------
+
+    public void ZoomIn(float seconds)
+    {
+        targetZoomVelocity = cam.transform.forward * zoomSpeed;
+        zoomTimer = seconds;
+    }
+
+    public void ZoomOut(float seconds)
+    {
+        targetZoomVelocity = -cam.transform.forward * zoomSpeed;
+        zoomTimer = seconds;
+    }
+
+    // -------- Actual movement --------
+
+    void HandleZoom()
+    {
+        if (zoomTarget == null)
+            return;
+
+        if (zoomTimer <= 0f)
+        {
+            targetZoomVelocity = Vector3.zero;
+            return;
+        }
+
+        zoomTimer -= Time.deltaTime;
+
+        currentZoomVelocity = Vector3.Lerp(
+            currentZoomVelocity,
+            targetZoomVelocity,
+            zoomSmooth * Time.deltaTime
+        );
+
+        Vector3 nextPos =
+            cam.transform.position + currentZoomVelocity * Time.deltaTime;
+
+        float distanceToTarget =
+            Vector3.Distance(nextPos, zoomTarget.position);
+
+        // 🚧 LIMIT CHECK (TARGET BASED)
+        if (distanceToTarget < minZoomDistance ||
+            distanceToTarget > maxZoomDistance)
+            return;
+
+        cam.transform.position = nextPos;
+    }
+}
