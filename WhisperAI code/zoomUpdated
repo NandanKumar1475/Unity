@@ -1,0 +1,294 @@
+Perfect bro 👍
+Now I understand **exactly** what you want:
+
+* You already have a **working Whisper-based controller** (move + rotate + reset)
+* You want to **ADD ZOOM IN / ZOOM OUT**
+* Zoom must be:
+
+  * **Whisper-controlled**
+  * **Smooth**
+  * **With limits relative to TARGET object**
+* And you want it **explained step by step**, then **final code changes** (not random new scripts)
+
+I’ll do this in **3 layers**:
+
+1️⃣ Concept (very simple)
+2️⃣ What NEW things we add (small chunks)
+3️⃣ Final **merged version of YOUR script**
+
+---
+
+## 🧠 1. CONCEPT (VERY SIMPLE, NO JARGON)
+
+### What is zoom here?
+
+Zoom = **move the CAMERA**, not the object.
+
+* Zoom In → camera goes **towards target**
+* Zoom Out → camera goes **away from target**
+
+### What are zoom limits?
+
+We don’t want camera to:
+
+* Go **inside** the target
+* Go **too far away**
+
+So we measure:
+
+```
+distance = Distance(camera , target)
+```
+
+and allow zoom only if:
+
+```
+minZoomDistance <= distance <= maxZoomDistance
+```
+
+That’s it. This is the whole idea.
+
+---
+
+## 🧠 2. WHAT WE ADD TO YOUR SCRIPT (IN SMALL CHUNKS)
+
+We will **NOT touch** your existing:
+
+* move logic
+* rotate logic
+* reset logic
+
+We only **add zoom-related parts**.
+
+---
+
+### 🔹 STEP 1: Add these VARIABLES (top of class)
+
+Paste **below Rotation section**:
+
+```csharp
+[Header("Zoom (Camera Based)")]
+public Camera cam;
+public float zoomSpeed = 4f;
+public float zoomSmooth = 6f;
+
+[Header("Zoom Limits (Relative to Target)")]
+public float minZoomDistance = 2f;
+public float maxZoomDistance = 15f;
+
+Vector3 targetZoomVelocity;
+Vector3 currentZoomVelocity;
+float zoomTimer;
+```
+
+📌 Meaning:
+
+* `cam` → which camera to move
+* `zoomSpeed` → how fast zoom happens
+* `zoomSmooth` → how smooth it feels
+* `min/maxZoomDistance` → safety limits
+
+---
+
+### 🔹 STEP 2: Initialize camera (inside `Awake()`)
+
+Modify your `Awake()` like this:
+
+```csharp
+void Awake()
+{
+    originPos = target.position;
+    originRot = target.rotation;
+
+    if (cam == null)
+        cam = Camera.main;
+}
+```
+
+---
+
+### 🔹 STEP 3: Parse ZOOM voice command
+
+(Add inside `HandleCommand()` **at the END**)
+
+```csharp
+// ================= ZOOM =================
+if (text.Contains("zoom"))
+{
+    float duration = ExtractDuration(text);
+
+    if (text.Contains("in"))
+    {
+        targetZoomVelocity = cam.transform.forward * zoomSpeed;
+        zoomTimer = duration;
+    }
+    else if (text.Contains("out"))
+    {
+        targetZoomVelocity = -cam.transform.forward * zoomSpeed;
+        zoomTimer = duration;
+    }
+}
+```
+
+Now Whisper understands:
+
+```
+hey zoom in
+hey zoom out
+hey zoom in for 2 seconds
+```
+
+---
+
+### 🔹 STEP 4: Add ZOOM UPDATE METHOD
+
+(Paste anywhere in the class)
+
+```csharp
+void HandleZoom()
+{
+    if (zoomTimer <= 0f)
+    {
+        targetZoomVelocity = Vector3.zero;
+        return;
+    }
+
+    zoomTimer -= Time.deltaTime;
+
+    currentZoomVelocity = Vector3.Lerp(
+        currentZoomVelocity,
+        targetZoomVelocity,
+        zoomSmooth * Time.deltaTime
+    );
+
+    Vector3 nextPos =
+        cam.transform.position + currentZoomVelocity * Time.deltaTime;
+
+    float distanceToTarget =
+        Vector3.Distance(nextPos, target.position);
+
+    // 🚧 LIMIT CHECK (TARGET RELATIVE)
+    if (distanceToTarget < minZoomDistance ||
+        distanceToTarget > maxZoomDistance)
+        return;
+
+    cam.transform.position = nextPos;
+}
+```
+
+🧠 This is the **core zoom logic**:
+
+* smooth velocity
+* calculate next camera position
+* check distance to target
+* move camera ONLY if inside limits
+
+---
+
+### 🔹 STEP 5: Call zoom in `Update()`
+
+Modify your `Update()`:
+
+```csharp
+void Update()
+{
+    HandleMove();
+    HandleRotate();
+    HandleZoom();   // ✅ ADD THIS
+    HandleReset();
+}
+```
+
+---
+
+### 🔹 STEP 6: Stop command should stop zoom too
+
+Modify your `StopAll()`:
+
+```csharp
+void StopAll()
+{
+    targetMoveVelocity = Vector3.zero;
+    targetAngularVelocity = Vector3.zero;
+    targetZoomVelocity = Vector3.zero;
+
+    currentMoveVelocity = Vector3.zero;
+    currentAngularVelocity = Vector3.zero;
+    currentZoomVelocity = Vector3.zero;
+
+    moveTimer = 0f;
+    rotateTimer = 0f;
+    zoomTimer = 0f;
+
+    Debug.Log("STOPPED");
+}
+```
+
+---
+
+## 🧠 3. FINAL: WHAT COMMANDS WORK NOW
+
+### ✅ Zoom commands
+
+```
+hey zoom in
+hey zoom out
+hey zoom in for 2 seconds
+hey zoom out for 1.5 seconds
+```
+
+### ✅ With limits
+
+* Camera stops automatically at `minZoomDistance`
+* Camera stops automatically at `maxZoomDistance`
+
+### ✅ Combined
+
+```
+hey move forward
+hey zoom in
+hey rotate right
+hey stop
+```
+
+---
+
+## 🎛️ Recommended Inspector Values
+
+| Field           | Value   |
+| --------------- | ------- |
+| zoomSpeed       | 3 – 5   |
+| zoomSmooth      | 6 – 10  |
+| minZoomDistance | 1.5 – 2 |
+| maxZoomDistance | 12 – 18 |
+
+---
+
+## 🧠 FINAL MENTAL MODEL (REMEMBER THIS)
+
+```
+Whisper → intent (zoom in/out)
+Update → smooth velocity
+Before move → check distance to target
+Inside limit → move camera
+Outside limit → block
+```
+
+If you understand this, you can now:
+
+* add **reset zoom**
+* add **orbit camera**
+* add **cinemachine**
+* add **focus on object by voice**
+
+---
+
+### 🔥 NEXT (tell me which one)
+
+1️⃣ Reset zoom by voice
+2️⃣ Orbit camera around target
+3️⃣ Zoom + rotate together
+4️⃣ Cinemachine version
+5️⃣ Visual debug (draw zoom radius)
+
+Just say the **number** 👊
