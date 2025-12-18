@@ -1,0 +1,182 @@
+using UnityEngine;
+using Whisper.Samples;
+using System.Text.RegularExpressions;
+
+public class VoiceRotationController : MonoBehaviour
+{
+    [Header("Voice")]
+    public StreamingSampleMic mic;
+    public string wakeWord = "hey";
+
+    [Header("Target")]
+    public Transform target;
+
+    [Header("Rotation Settings")]
+    public float rotateSpeed = 120f;   // degrees per second
+    public float rotateSmooth = 6f;
+
+    // ===== TIME BASED ROTATION =====
+    Vector3 targetAngularVelocity;
+    Vector3 currentAngularVelocity;
+    float rotateTimer;
+
+    // ===== ANGLE BASED ROTATION =====
+    bool angleRotating;
+    Quaternion angleStartRot;
+    Quaternion angleTargetRot;
+    float angleT;
+
+    bool wakeActive;
+
+    void OnEnable()
+    {
+        mic.OnFinalText += HandleCommand;
+    }
+
+    void OnDisable()
+    {
+        mic.OnFinalText -= HandleCommand;
+    }
+
+    void Update()
+    {
+        HandleTimeBasedRotation();
+        HandleAngleBasedRotation();
+    }
+
+    // ================= VOICE =================
+
+    void HandleCommand(string text)
+    {
+        text = text.ToLower().Trim();
+        Debug.Log("VOICE: " + text);
+
+        // Wake word
+        if (text.Contains(wakeWord))
+        {
+            wakeActive = true;
+            return;
+        }
+
+        if (!wakeActive) return;
+
+        // Stop
+        if (text.Contains("stop"))
+        {
+            StopRotation();
+            return;
+        }
+
+        VoiceDirection dir = GetDirection(text);
+
+        // ---------- ANGLE BASED ----------
+        if (text.Contains("degree"))
+        {
+            float angle = ExtractAngle(text);
+            StartAngleRotation(dir, angle);
+            return;
+        }
+
+        // ---------- TIME BASED ----------
+        float duration = ExtractDuration(text);
+        StartTimeRotation(dir, duration);
+    }
+
+    // ================= TIME BASED =================
+
+    void StartTimeRotation(VoiceDirection dir, float duration)
+    {
+        targetAngularVelocity = GetRotationAxis(dir) * rotateSpeed;
+        rotateTimer = duration;
+    }
+
+    void HandleTimeBasedRotation()
+    {
+        if (rotateTimer <= 0f) return;
+
+        rotateTimer -= Time.deltaTime;
+
+        currentAngularVelocity = Vector3.Lerp(
+            currentAngularVelocity,
+            targetAngularVelocity,
+            rotateSmooth * Time.deltaTime
+        );
+
+        target.Rotate(currentAngularVelocity * Time.deltaTime, Space.World);
+    }
+
+    // ================= ANGLE BASED =================
+
+    void StartAngleRotation(VoiceDirection dir, float angle)
+    {
+        angleRotating = true;
+        angleT = 0f;
+
+        angleStartRot = target.rotation;
+
+        Quaternion delta = Quaternion.AngleAxis(
+            angle * (dir == VoiceDirection.Left ? -1 : 1),
+            Vector3.up
+        );
+
+        angleTargetRot = angleStartRot * delta;
+    }
+
+    void HandleAngleBasedRotation()
+    {
+        if (!angleRotating) return;
+
+        angleT += Time.deltaTime * rotateSmooth;
+
+        target.rotation = Quaternion.Slerp(
+            angleStartRot,
+            angleTargetRot,
+            angleT
+        );
+
+        if (angleT >= 1f)
+            angleRotating = false;
+    }
+
+    // ================= HELPERS =================
+
+    void StopRotation()
+    {
+        rotateTimer = 0f;
+        angleRotating = false;
+        currentAngularVelocity = Vector3.zero;
+        targetAngularVelocity = Vector3.zero;
+        Debug.Log("ROTATION STOPPED");
+    }
+
+    float ExtractDuration(string t)
+    {
+        Match m = Regex.Match(t, @"(\d+(\.\d+)?)\s*(second|seconds)");
+        return m.Success ? float.Parse(m.Groups[1].Value) : 1.5f;
+    }
+
+    float ExtractAngle(string t)
+    {
+        Match m = Regex.Match(t, @"(\d+(\.\d+)?)\s*(degree|degrees)");
+        return m.Success ? float.Parse(m.Groups[1].Value) : 90f;
+    }
+
+    VoiceDirection GetDirection(string t)
+    {
+        if (t.Contains("left")) return VoiceDirection.Left;
+        if (t.Contains("right")) return VoiceDirection.Right;
+        return VoiceDirection.None;
+    }
+
+    Vector3 GetRotationAxis(VoiceDirection d)
+    {
+        return d switch
+        {
+            VoiceDirection.Left => Vector3.up * -1,
+            VoiceDirection.Right => Vector3.up,
+            _ => Vector3.zero
+        };
+    }
+}
+
+public enum VoiceDirection { None, Left, Right }
