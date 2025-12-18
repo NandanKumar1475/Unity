@@ -1,0 +1,394 @@
+using UnityEngine;
+using Whisper.Samples;
+using System.Text.RegularExpressions;
+
+public class VoiceCommandController_AI_FINAL : MonoBehaviour
+{
+    [Header("Voice")]
+    public StreamingSampleMic mic;
+    public string wakeWord = "hey";
+
+    [Header("Target")]
+    public Transform target;
+    public Camera cam;
+
+    [Header("Movement")]
+    public float moveSpeed = 2.5f;
+    public float moveSmooth = 6f;
+
+    [Header("Rotation")]
+    public float rotateSpeed = 120f;
+    public float rotateSmooth = 6f;
+
+    [Header("Reset")]
+    public float resetSpeed = 2f;
+
+    [Header("Zoom")]
+    public float zoomSmooth = 6f;
+    public float minFOV = 25f;
+    public float maxFOV = 90f;
+
+    [Header("Command Safety")]
+    public float commandCooldown = 0.35f;
+
+    // ===== Internal State =====
+    Vector3 originPos;
+    Quaternion originRot;
+    float originFOV;
+
+    Vector3 targetMoveVel, currentMoveVel;
+    Vector3 targetRotVel, currentRotVel;
+
+    float moveTimer;
+    float rotateTimer;
+
+    // Angle rotation
+    bool angleRotating;
+    Quaternion angleStartRot, angleTargetRot;
+    float angleT;
+
+    // Reset
+    bool resetPos, resetRot;
+    Vector3 resetPosStart;
+    Quaternion resetRotStart;
+    float resetT;
+
+    // Zoom
+    bool zooming;
+    float zoomTargetFOV;
+
+    bool wakeActive;
+    float lastCommandTime;
+
+    // ================= UNITY =================
+
+    void Awake()
+    {
+        originPos = target.position;
+        originRot = target.rotation;
+        if (cam) originFOV = cam.fieldOfView;
+    }
+
+    void OnEnable() => mic.OnFinalText += HandleCommand;
+    void OnDisable() => mic.OnFinalText -= HandleCommand;
+
+    void Update()
+    {
+        HandleMove();
+        HandleRotateTime();
+        HandleRotateAngle();
+        HandleReset();
+        HandleZoom();
+    }
+
+    // ================= VOICE =================
+
+    void HandleCommand(string text)
+    {
+        text = text.ToLower().Trim();
+        Debug.Log("VOICE: " + text);
+
+        // ---- COOLDOWN (prevents double execution) ----
+        if (Time.time - lastCommandTime < commandCooldown)
+            return;
+        lastCommandTime = Time.time;
+
+        if (text.Contains(wakeWord))
+        {
+            wakeActive = true;
+            return;
+        }
+        if (!wakeActive) return;
+
+        // ---- STOP (highest priority) ----
+        if (text.Contains("stop"))
+        {
+            StopAll();
+            Speak("Stopped");
+            return;
+        }
+
+        // ---- RESET ----
+        if (text.Contains("reset"))
+        {
+            if (text.Contains("position"))
+            {
+                StartResetPosition();
+                Speak("Position reset");
+            }
+            else if (text.Contains("rotation"))
+            {
+                StartResetRotation();
+                Speak("Rotation reset");
+            }
+            else
+            {
+                StartResetPosition();
+                StartResetRotation();
+                ResetZoom();
+                Speak("All reset");
+            }
+            return;
+        }
+
+        // ---- SPEED ----
+        HandleSpeedChange(text);
+
+        // ---- ZOOM ----
+        if (text.Contains("zoom"))
+        {
+            if (text.Contains("out"))
+            {
+                StartZoom(+10f);
+                Speak("Zooming out");
+            }
+            else if (text.Contains("in"))
+            {
+                StartZoom(-15f);
+                Speak("Zooming in");
+            }
+            return;
+        }
+
+        float duration = ExtractDuration(text);
+        VoiceAction action = GetAction(text);
+        VoiceDirection dir = GetDirection(text);
+
+        // ---- ANGLE ROTATION ----
+        if (action == VoiceAction.Rotate && text.Contains("degree") && dir != VoiceDirection.None)
+        {
+            float angle = ExtractAngle(text);
+            StartAngleRotation(dir, angle);
+            Speak($"Rotating {dir.ToString().ToLower()} {angle} degrees");
+            return;
+        }
+
+        // ---- TIME ROTATION ----
+        if (action == VoiceAction.Rotate && dir != VoiceDirection.None)
+        {
+            StopAngleRotation();
+            targetRotVel = GetRotationAxis(dir) * rotateSpeed;
+            rotateTimer = duration;
+            Speak($"Rotating {dir.ToString().ToLower()}");
+            return;
+        }
+
+        // ---- MOVE ----
+        if (action == VoiceAction.Move && dir != VoiceDirection.None)
+        {
+            targetMoveVel = GetDirectionVector(dir) * moveSpeed;
+            moveTimer = duration;
+            Speak($"Moving {dir.ToString().ToLower()}");
+        }
+    }
+
+    // ================= MOVE =================
+
+    void HandleMove()
+    {
+        if (moveTimer <= 0f) return;
+
+        moveTimer -= Time.deltaTime;
+        currentMoveVel = Vector3.Lerp(currentMoveVel, targetMoveVel, moveSmooth * Time.deltaTime);
+        target.position += currentMoveVel * Time.deltaTime;
+    }
+
+    // ================= ROTATE (TIME) =================
+
+    void HandleRotateTime()
+    {
+        if (rotateTimer <= 0f) return;
+
+        rotateTimer -= Time.deltaTime;
+        currentRotVel = Vector3.Lerp(currentRotVel, targetRotVel, rotateSmooth * Time.deltaTime);
+        target.Rotate(currentRotVel * Time.deltaTime, Space.World);
+    }
+
+    // ================= ROTATE (ANGLE) =================
+
+    void StartAngleRotation(VoiceDirection dir, float angle)
+    {
+        StopAllMotion();
+        angleRotating = true;
+        angleT = 0f;
+        angleStartRot = target.rotation;
+
+        Vector3 axis = GetRotationAxis(dir).normalized;
+        float signed = (dir == VoiceDirection.Left || dir == VoiceDirection.Down || dir == VoiceDirection.Backward)
+            ? -angle : angle;
+
+        angleTargetRot = angleStartRot * Quaternion.AngleAxis(signed, axis);
+    }
+
+    void HandleRotateAngle()
+    {
+        if (!angleRotating) return;
+
+        angleT += Time.deltaTime * rotateSmooth;
+        target.rotation = Quaternion.Slerp(angleStartRot, angleTargetRot, angleT);
+
+        if (angleT >= 1f)
+        {
+            target.rotation = angleTargetRot;
+            angleRotating = false;
+        }
+    }
+
+    void StopAngleRotation() => angleRotating = false;
+
+    // ================= RESET =================
+
+    void StartResetPosition()
+    {
+        StopAllMotion();
+        resetPos = true;
+        resetT = 0f;
+        resetPosStart = target.position;
+    }
+
+    void StartResetRotation()
+    {
+        StopAllMotion();
+        resetRot = true;
+        resetT = 0f;
+        resetRotStart = target.rotation;
+    }
+
+    void HandleReset()
+    {
+        if (resetPos)
+        {
+            resetT += Time.deltaTime * resetSpeed;
+            target.position = Vector3.Lerp(resetPosStart, originPos, resetT);
+            if (resetT >= 1f) resetPos = false;
+        }
+
+        if (resetRot)
+        {
+            resetT += Time.deltaTime * resetSpeed;
+            target.rotation = Quaternion.Slerp(resetRotStart, originRot, resetT);
+            if (resetT >= 1f) resetRot = false;
+        }
+    }
+
+    // ================= ZOOM =================
+
+    void StartZoom(float delta)
+    {
+        if (!cam) return;
+        zoomTargetFOV = Mathf.Clamp(cam.fieldOfView + delta, minFOV, maxFOV);
+        zooming = true;
+    }
+
+    void HandleZoom()
+    {
+        if (!zooming || !cam) return;
+
+        cam.fieldOfView = Mathf.Lerp(cam.fieldOfView, zoomTargetFOV, zoomSmooth * Time.deltaTime);
+        if (Mathf.Abs(cam.fieldOfView - zoomTargetFOV) < 0.1f)
+            zooming = false;
+    }
+
+    void ResetZoom()
+    {
+        if (cam) cam.fieldOfView = originFOV;
+        zooming = false;
+    }
+
+    // ================= STOP =================
+
+    void StopAll()
+    {
+        StopAllMotion();
+        resetPos = resetRot = false;
+        zooming = false;
+    }
+
+    void StopAllMotion()
+    {
+        targetMoveVel = currentMoveVel = Vector3.zero;
+        targetRotVel = currentRotVel = Vector3.zero;
+        moveTimer = rotateTimer = 0f;
+        angleRotating = false;
+    }
+
+    // ================= HELPERS =================
+
+    void Speak(string msg) => Debug.Log("AI: " + msg);
+
+    float ExtractDuration(string t)
+    {
+        Match m = Regex.Match(t, @"(\d+(\.\d+)?)\s*(second|seconds)");
+        return m.Success ? float.Parse(m.Groups[1].Value) : 1.5f;
+    }
+
+    float ExtractAngle(string t)
+    {
+        Match m = Regex.Match(t, @"(\d+(\.\d+)?)\s*(degree|degrees)");
+        return m.Success ? float.Parse(m.Groups[1].Value) : 90f;
+    }
+
+    void HandleSpeedChange(string t)
+    {
+        Match m = Regex.Match(t, @"set movement speed\s*(\d+(\.\d+)?)");
+        if (m.Success)
+        {
+            moveSpeed = Mathf.Clamp(float.Parse(m.Groups[1].Value), 0.5f, 20f);
+            Speak($"Movement speed set to {moveSpeed}");
+        }
+
+        m = Regex.Match(t, @"set rotation speed\s*(\d+(\.\d+)?)");
+        if (m.Success)
+        {
+            rotateSpeed = Mathf.Clamp(float.Parse(m.Groups[1].Value), 10f, 360f);
+            Speak($"Rotation speed set to {rotateSpeed}");
+        }
+    }
+
+    VoiceAction GetAction(string t)
+    {
+        if (t.Contains("move") || t.Contains("go")) return VoiceAction.Move;
+        if (t.Contains("rotate") || t.Contains("turn")) return VoiceAction.Rotate;
+        return VoiceAction.None;
+    }
+
+    VoiceDirection GetDirection(string t)
+    {
+        if (t.Contains("left")) return VoiceDirection.Left;
+        if (t.Contains("right")) return VoiceDirection.Right;
+        if (t.Contains("forward")) return VoiceDirection.Forward;
+        if (t.Contains("back")) return VoiceDirection.Backward;
+        if (t.Contains("up")) return VoiceDirection.Up;
+        if (t.Contains("down")) return VoiceDirection.Down;
+        return VoiceDirection.None;
+    }
+
+    Vector3 GetDirectionVector(VoiceDirection d)
+    {
+        return d switch
+        {
+            VoiceDirection.Left => Vector3.left,
+            VoiceDirection.Right => Vector3.right,
+            VoiceDirection.Forward => Vector3.forward,
+            VoiceDirection.Backward => Vector3.back,
+            VoiceDirection.Up => Vector3.up,
+            VoiceDirection.Down => Vector3.down,
+            _ => Vector3.zero
+        };
+    }
+
+    Vector3 GetRotationAxis(VoiceDirection d)
+    {
+        return d switch
+        {
+            VoiceDirection.Left => Vector3.up * -1,
+            VoiceDirection.Right => Vector3.up,
+            VoiceDirection.Up => Vector3.right * -1,
+            VoiceDirection.Down => Vector3.right,
+            _ => Vector3.zero
+        };
+    }
+}
+
+public enum VoiceAction { None, Move, Rotate }
+public enum VoiceDirection { None, Left, Right, Forward, Backward, Up, Down }
