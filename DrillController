@@ -1,0 +1,130 @@
+using UnityEngine;
+
+public class DrillController : MonoBehaviour
+{
+    [Header("Drill Rotation")]
+    public Transform drillBit;
+    public float rotationSpeed = 600f;
+
+    [Header("Raycast")]
+    public Transform rayPoint;
+    public float rayDistance = 0.5f;
+    public LayerMask wallLayer;
+
+    [Header("Hole Illusion")]
+    public GameObject holePrefab;
+    public float holeDepthSpeed = 0.4f;
+    public float maxHoleDepth = 0.3f;
+    public float sameHoleDistance = 0.03f;
+
+    [Header("Particles")]
+    public ParticleSystem dust;
+    public ParticleSystem chips;
+
+    private Transform activeHole;
+    private Vector3 activeHolePoint;
+
+    void Update()
+    {
+        if (Input.GetMouseButton(0))
+        {
+            RotateDrill();
+            Drill();
+        }
+        else
+        {
+            StopDrilling();
+        }
+    }
+
+    // ---------------- ROTATION ----------------
+    void RotateDrill()
+    {
+        if (drillBit)
+            drillBit.Rotate(Vector3.forward * rotationSpeed * Time.deltaTime);
+    }
+
+    // ---------------- DRILLING ----------------
+    void Drill()
+    {
+        Vector3 origin = rayPoint.position;
+        Vector3 dir = rayPoint.TransformDirection(Vector3.forward);
+
+        if (Physics.Raycast(origin, dir, out RaycastHit hit, rayDistance, wallLayer))
+        {
+            HandleHole(hit, dir);
+            HandleParticles(hit, dir);
+        }
+        else
+        {
+            StopParticles();
+        }
+    }
+
+    // ---------------- HOLE DEPTH ILLUSION ----------------
+    void HandleHole(RaycastHit hit, Vector3 dir)
+    {
+        // Create new hole only if point changed
+        if (activeHole == null || Vector3.Distance(hit.point, activeHolePoint) > sameHoleDistance)
+        {
+            GameObject hole = Instantiate(
+                holePrefab,
+                hit.point,
+                Quaternion.LookRotation(-dir),
+                hit.collider.transform
+            );
+
+            activeHole = hole.transform;
+            activeHolePoint = hit.point;
+            activeHole.localScale = new Vector3(0.1f, 0.1f, 0.01f);
+        }
+
+        // Grow depth illusion
+        Vector3 scale = activeHole.localScale;
+        scale.z += holeDepthSpeed * Time.deltaTime;
+        scale.z = Mathf.Clamp(scale.z, 0.01f, maxHoleDepth);
+        activeHole.localScale = scale;
+    }
+
+    // ---------------- PARTICLE ILLUSION ----------------
+    void HandleParticles(RaycastHit hit, Vector3 dir)
+    {
+        if (dust)
+        {
+            dust.transform.position = hit.point;
+            dust.transform.rotation = Quaternion.LookRotation(-dir);
+            if (!dust.isPlaying) dust.Play();
+        }
+
+        if (chips)
+        {
+            chips.transform.position = hit.point;
+            chips.transform.rotation = Quaternion.LookRotation(-dir);
+            if (!chips.isPlaying) chips.Play();
+        }
+    }
+
+    void StopParticles()
+    {
+        if (dust && dust.isPlaying) dust.Stop();
+        if (chips && chips.isPlaying) chips.Stop();
+    }
+
+    void StopDrilling()
+    {
+        StopParticles();
+        // Do NOT reset activeHole → illusion continuity
+    }
+
+    // ---------------- GIZMOS ----------------
+    void OnDrawGizmos()
+    {
+        if (!rayPoint) return;
+
+        Gizmos.color = Color.red;
+        Gizmos.DrawLine(
+            rayPoint.position,
+            rayPoint.position + rayPoint.TransformDirection(Vector3.forward) * rayDistance
+        );
+    }
+}
