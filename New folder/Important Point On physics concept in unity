@@ -1,0 +1,81 @@
+When the hammer hits the nail:
+Hammer is moving → it has momentum
+On impact, hammer transfers momentum to nail
+Transfer happens over a very short time
+That transfer is called an IMPULSE
+-------------------------------------------------------------------------
+
+Force does NOT move objects.
+Force causes acceleration.
+Acceleration creates velocity.
+Velocity creates motion.
+
+
+🔐 ONE-SENTENCE LOCK (MEMORIZE THIS)
+
+Impulse is a kick.
+Force is a push.
+A kick moves things instantly.
+A push must last over time.
+
+❌ “More mass means more movement”
+Wrong.
+✔ More mass means harder to accelerate.
+
+🔑 CORE LOCK (NON-NEGOTIABLE)
+Movement is decided by Impulse, not Force.
+Impulse = Force × Time.
+
+🔑 CORE LOCK (MEMORIZE)
+
+Forces start motion.
+Resistance ends motion.
+Distance traveled = how long resistance takes to kill velocity.
+--------------------------------------------------------------------
+Momentun (p) = mass * velocity 
+Formula: 
+impulse j = f * delata T (Force × change in Time). Impulse = total velocity change
+Force = Mass × Acceleration
+Impulse = Force × Time
+
+----------------------------------------------------------------------
+Now from Unity Points of Views 
+-----------------------------------------------------------------
+formulas can be used in this ?
+
+🔑 CORE LOCK
+Transform movement teleports.
+Rigidbody movement simulates.
+Teleportation has no physics.
+
+🔑 CORE LOCK
+Input belongs to Update.
+Physics belongs to FixedUpdate.
+Mixing them breaks determinism.
+
+---///////////////////////////////////------------
+// Basic Syntax
+Rigidbody.AddForce(Vector3 force);
+
+// Full Syntax with ForceMode
+Rigidbody.AddForce(Vector3 force, ForceMode mode);
+
+// Local Space Syntax (Relative to object orientation)
+Rigidbody.AddRelativeForce(Vector3 force, ForceMode mode);
+
+For physics objects:
+rb.MovePosition(rb.position + direction * speed * Time.fixedDeltaTime);
+
+-----------////////////////////////////////////////////////////////////-/-----//-------
+-------------------------------------------------------------------------------------
+Screw : has -> Rigidbody Collider Mass
+Hammer : has --> Rigidbosy Collider Mass 
+
+rb.AddForce(hitDirection * hitStrength, ForceMode.Impulse);
+
+WHY ForceMode.Impulse IS NON-NEGOTIABLE
+
+Impulse means:Force applied instantly , Ignores frame duration ,Matches real hammer impact
+
+     ----Impulse → sudden velocity change → penetration → friction slows it---
+
