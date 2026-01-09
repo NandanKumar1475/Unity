@@ -1,0 +1,58 @@
+Under-the-hood reality
+
+A Unity Mesh is just structured data in memory:
+
+Mesh
+ ├─ Vector3[] vertices   ← positions (THIS is what you push)
+ ├─ int[] triangles      ← index order
+ ├─ Vector3[] normals    ← lighting directions
+ ├─ Vector2[] uvs        ← texture mapping
+
+
+When you “push” a vertex, you are doing this:
+oldPosition + direction * distance
+mf  =  
+
+pull code Target-based Pull (Real deformation)
+using UnityEngine;
+
+[RequireComponent(typeof(MeshFilter))]
+public class VertexPuller : MonoBehaviour
+{
+    public Transform pullPoint;
+    public float radius = 0.4f;
+    public float pullStrength = 0.02f;
+
+    Mesh mesh;
+    Vector3[] vertices;
+
+    void Start()
+    {
+        mesh = GetComponent<MeshFilter>().mesh;
+        vertices = mesh.vertices;
+    }
+
+    void Update()
+    {
+        if (Input.GetKey(KeyCode.P))
+            PullVertices();
+    }
+
+    void PullVertices()
+    {
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            float distance = Vector3.Distance(vertices[i], pullPoint.localPosition);
+
+            if (distance < radius)
+            {
+                Vector3 dir = (pullPoint.localPosition - vertices[i]).normalized;
+                vertices[i] += dir * pullStrength * (1f - distance / radius);
+            }
+        }
+
+        mesh.vertices = vertices;
+        mesh.RecalculateNormals();
+        mesh.RecalculateBounds();
+    }
+}
