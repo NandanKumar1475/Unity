@@ -1,0 +1,102 @@
+Concept 1 — Mesh Kya Hota Hai? (From Absolute Zero)
+Unity me koi bhi 3D object (wall, cube, character) mesh se bana hota hai.
+A Mesh = 3 data lists:
+
+Vertices
+→ 3D points (Vector3)
+→ Ye actual shape define karte hain
+
+Triangles
+→ Vertices ko connect karte hain
+→ GPU ko batate hain kaunse 3 points ek surface banate hain
+
+Normals
+→ Direction batate hain surface kis side face kar rahi hai
+→ Lighting yahin se kaam karti hai
+
+Simple bolu:
+Mesh = dots + connections + directions
+
+| fake                     | Reality                         |
+| ------------------------ | ------------------------------- |
+| Mesh ek solid cheez hai  | Mesh sirf points ka network hai |
+| Hole = texture change    | Hole = vertices move            |
+| Scale ya cut karna       | Vertex displacement             |
+| Physics se apne aap hole | Physics sirf detect karta hai   |
+
+
+meshFilter.sharedMesh  // ORIGINAL (read-only)
+meshFilter.mesh        // CLONE (editable)
+Tum kabhi bhi sharedMesh modify nahi karoge.
+Always:
+Mesh mesh = meshFilter.mesh;
+Unity bolega:
+"Theek hai, le lo tumhari personal copy."
+
+
+--> Mesh vertices are ALWAYS in LOCAL SPACE
+
+
+Example Code 
+ MeshFilter mf = GetComponent<MeshFilter>();
+Is line me 4 cheezein ho rahi hain. Dhyaan se.
+1️⃣ MeshFilter (Type)
+MeshFilter Unity ka component hai
+Ye batata hai kaunsa mesh render ho raha hai
+Har visible 3D object ke paas hota hai:
+MeshFilter → shape
+MeshRenderer → material
+2️⃣ mf (Variable Name)
+Ye sirf ek naam hai
+Isme hum MeshFilter ka reference store kar rahe hain
+Socho:
+mf = shortcut naam
+3️⃣ GetComponent<MeshFilter>()
+Unity se bolo:
+“Is GameObject pe jo MeshFilter laga hai, wo mujhe de do”
+⚠️ Agar MeshFilter nahi hoga:
+mf = null
+Next line crash
+
+Why This Line is CRITICAL
+Without this:
+Mesh access ❌
+Vertex access ❌
+Deformation ❌
+This line is your entry gate into the mesh.
+
+step 2
+Mesh mesh = mf.mesh;
+1️⃣ Mesh (Type)
+
+Mesh Unity ka object hai
+
+Iske andar hota hai:
+vertices
+triangles
+normals=
+bounds
+Ye actual geometry data hai.
+2️⃣mf.mesh (MOST IMPORTANT PART)
+Unity internally ye karta hai:
+mf.sharedMesh → ORIGINAL mesh (read-only)
+mf.mesh → CLONE bana deta hai (editable)
+
+
+
+
+
+
+
+🧱step 3 
+Vector3[] vertices = mesh.vertices;
+Vector3[] (Type)
+Vector3 = ek point (x, y, z)
+Vector3[] = points ki list
+Har element = ek vertex
+vertices[0] → first point
+vertices[1] → second point
+...
+3️⃣ mesh.vertices
+Unity mesh ke saare vertex positions deta hai
+Ye positions LOCAL SPACE me hote hain
