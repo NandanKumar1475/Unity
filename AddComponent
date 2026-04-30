@@ -1,0 +1,12 @@
+| Concept            | Meaning                                     | Syntax Example                                                      |
+| ------------------ | ------------------------------------------- | ------------------------------------------------------------------- |
+| Core idea          | Create + attach component                   | `gameObject.AddComponent<Rigidbody>();`                             |
+| Return value       | Gives reference of component                | `Rigidbody rb = gameObject.AddComponent<Rigidbody>();`              |
+| Best place         | Run once (setup)                            | `void Awake(){ AddComponent<Rigidbody>(); }`                        |
+| Avoid              | Don’t use in Update (runs every frame)      | ❌ `void Update(){ AddComponent<Rigidbody>(); }`                     |
+| Same object        | Add to object where script is               | `gameObject.AddComponent<BoxCollider>();`                           |
+| Child object       | Add to child                                | `transform.GetChild(0).gameObject.AddComponent<Rigidbody>();`       |
+| Parent object      | Add to parent                               | `transform.parent.gameObject.AddComponent<Rigidbody>();`            |
+| Safety check       | Avoid duplicate / null issues               | `if(GetComponent<Rigidbody>()==null){ AddComponent<Rigidbody>(); }` |
+| Existing component | Some (like Rigidbody) cannot be added twice | Unity blocks second add                                             |
+| Alternative        | Auto-add required component                 | `[RequireComponent(typeof(Rigidbody))]`                             |
