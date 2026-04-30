@@ -1,0 +1,6 @@
+| Method      | Where it searches  | Syntax Example                         |
+| ----------- | ------------------ | -------------------------------------- |
+| Same object | On this GameObject | `GetComponent<Rigidbody>();`           |
+| Parent      | Goes upward        | `GetComponentInParent<Rigidbody>();`   |
+| Child       | Goes downward      | `GetComponentInChildren<Rigidbody>();` |
+| Multiple    | Gets all matches   | `GetComponents<Rigidbody>();`          |
